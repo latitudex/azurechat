@@ -181,6 +181,13 @@ export interface AttachedFileModel {
   uploadedAt?: Date;
 }
 
+export interface DefaultTools {
+  webSearch?: boolean;
+  imageGeneration?: boolean;
+  companyContent?: boolean;
+  codeInterpreter?: boolean;
+}
+
 export interface ChatThreadModel {
   id: string;
   name: string;
@@ -202,6 +209,7 @@ export interface ChatThreadModel {
   codeInterpreterFileIdsSignature?: string;
   attachedFiles?: Array<AttachedFileModel>;
   subAgentIds?: string[];
+  defaultTools?: DefaultTools;
 }
 
 export interface UserPrompt {
