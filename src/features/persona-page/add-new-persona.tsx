@@ -63,7 +63,7 @@ export const AddNewPersona: FC<Props> = (props) => {
   const [selectedSubAgentIds, setSelectedSubAgentIds] = useState<string[]>(
     [...(persona.subAgentIds || [])]
   );
-  const [defaultTools, setDefaultTools] = useState<DefaultTools>(
+  const [defaultTools, setDefaultTools] = useState<NonNullable<DefaultTools>>(
     persona.defaultTools || {}
   );
   const [availableModels, setAvailableModels] = useState<Record<string, ModelConfig>>(MODEL_CONFIGS);
