@@ -22,8 +22,8 @@ export const ChatSamplePromptPage: FC<ChatSamplePromptProps> = async (
     <ScrollArea className="flex-1">
       <main className="flex flex-1 flex-col">
         <PromptHero />
-        <div className="container max-w-4xl py-8">
-          <div className="grid grid-cols-3 gap-3">
+        <div className="container max-w-4xl py-8 px-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {promptsResponse.response.map((prompt) => {
               return (
                 <PromptCard prompt={prompt} key={prompt.id} showContextMenu />

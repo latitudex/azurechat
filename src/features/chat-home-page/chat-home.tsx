@@ -121,7 +121,7 @@ export const ChatHome: FC<ChatPersonaProps> = ({ personas, extensions, news, fav
           }
           description={AI_DESCRIPTION}
         />
-        <div className="container max-w-4xl flex gap-20 flex-col">
+        <div className="container max-w-4xl flex gap-20 flex-col px-4">
           {showChangelog ? (
             <ChangelogSection setShowChangelog={setShowChangelog} />
           ) : (

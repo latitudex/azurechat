@@ -15,8 +15,8 @@ export const ExtensionPage: FC<Props> = (props) => {
     <ScrollArea className="flex-1">
       <main className="flex flex-1 flex-col">
         <ExtensionHero />
-        <div className="container max-w-4xl py-8">
-          <div className="grid grid-cols-3 gap-3">
+        <div className="container max-w-4xl py-8 px-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {props.extensions.map(async (extension) => {
               return (
                 <ExtensionCard
