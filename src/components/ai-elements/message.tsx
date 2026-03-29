@@ -34,7 +34,7 @@ export const MessageContent = ({
   'flex flex-col gap-2 overflow-hidden min-w-0 text-foreground text-sm',
   'group-[.is-user]:w-fit group-[.is-user]:max-w-[75%] group-[.is-user]:break-words group-[.is-user]:whitespace-pre-wrap group-[.is-user]:ml-auto',
   'group-[.is-user]:rounded-xl group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:bg-background group-[.is-user]:text-foreground group-[.is-user]:border-2 group-[.is-user]:border-primary',
-  'group-[.is-assistant]:px-0 group-[.is-assistant]:py-0',
+  'group-[.is-assistant]:px-4 group-[.is-assistant]:py-3 group-[.is-assistant]:border-l-2 group-[.is-assistant]:border-l-primary/20 group-[.is-assistant]:bg-muted/30 group-[.is-assistant]:rounded-r-lg',
       className
     )}
     {...props}

@@ -212,7 +212,7 @@ export const PromptInputTools = ({
 }: PromptInputToolsProps) => (
   <div
     className={cn(
-      'flex items-center gap-1',
+      'flex items-center gap-1 overflow-x-auto scrollbar-none',
       '[&_button:first-child]:rounded-bl-xl',
       className
     )}

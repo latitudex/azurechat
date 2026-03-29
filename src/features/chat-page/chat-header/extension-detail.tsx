@@ -53,9 +53,9 @@ export const ExtensionDetail: FC<Props> = (props) => {
           aria-label="Current Chat Extensions Menu"
         >
           <PocketKnife size={16} />
-          {installedCount > 0
-            ? `Installed ${installedCount}`
-            : `Add Extensions (Available: ${totalCount})`}
+          {installedCount > 0 && (
+            <span className="text-xs bg-primary/10 text-primary rounded-full px-1.5 py-0.5 font-medium">{installedCount}</span>
+          )}
         </Button>
       </SheetTrigger>
       <SheetContent className="min-w-[480px] sm:w-[540px] flex flex-col">

@@ -88,7 +88,7 @@ export const AgentList: FC<AgentListProps> = ({
       {favoritePersonas.length > 0 && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold mb-3">Favorites</h2>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {favoritePersonas.map((persona) => (
               <PersonaCard
                 persona={persona}
@@ -108,7 +108,7 @@ export const AgentList: FC<AgentListProps> = ({
           {favoritePersonas.length > 0 ? "All Agents" : "Agents"}
         </h2>
         {paginatedPersonas.length > 0 ? (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {paginatedPersonas.map((persona) => (
               <PersonaCard
                 persona={persona}

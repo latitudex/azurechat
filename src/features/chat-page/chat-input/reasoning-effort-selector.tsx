@@ -60,10 +60,10 @@ export const ReasoningEffortSelector: React.FC<ReasoningEffortSelectorProps> = (
   ];
 
   return (
-    <div className="flex items-center gap-2">
-      <Brain size={16} className="text-blue-500" />
+    <div className="flex items-center">
       <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger className="w-32 h-8 text-xs">
+        <SelectTrigger className="w-auto h-8 text-xs gap-1 px-2">
+          <Brain size={14} className="text-blue-500 shrink-0" />
           <SelectValue placeholder="Reasoning" />
         </SelectTrigger>
         <SelectContent>

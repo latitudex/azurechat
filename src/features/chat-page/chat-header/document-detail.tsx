@@ -21,6 +21,8 @@ interface DocumentDetailProps {
 }
 
 export const DocumentDetail: FC<DocumentDetailProps> = ({ chatDocuments }) => {
+  if (chatDocuments.length === 0) return null;
+
   const handleDeletion = async () => {
     const threadId = chatDocuments[0].chatThreadId;
     await SoftDeleteChatDocumentsForCurrentUser(threadId);

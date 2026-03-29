@@ -52,6 +52,22 @@ const ChatMessages = memo(function ChatMessages({ profilePicture }: { profilePic
   return (
     <Conversation>
       <ConversationContent className="max-w-4xl mx-auto w-full">
+        {messages.length === 0 && loading === "idle" && (
+          <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+            <p className="text-lg text-muted-foreground mb-6">How can I help you today?</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg w-full">
+              {["Summarize a document for me", "Help me write an email", "Explain a technical concept", "Analyze data or a report"].map((prompt) => (
+                <button
+                  key={prompt}
+                  className="text-left text-sm px-4 py-3 rounded-lg border border-border/50 hover:border-border hover:bg-accent/40 transition-colors text-muted-foreground"
+                  onClick={() => { chatStore.updateInput(prompt); }}
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {messages.map((m, mIndex) => {
           const role = (m.role === 'user' || m.role === 'assistant' || m.role === 'system') ? m.role : 'assistant';
           const avatarSrc = role === 'user'
@@ -407,8 +423,8 @@ export const ChatPage = (props: ChatPageProps) => {
                   <PromptInputModelSelectValue placeholder="Model" />
                 </PromptInputModelSelectTrigger>
                 <PromptInputModelSelectContent>
-                  {Object.keys(MODEL_CONFIGS).map(m => (
-                    <PromptInputModelSelectItem key={m} value={m}>{m}</PromptInputModelSelectItem>
+                  {(Object.keys(MODEL_CONFIGS) as Array<keyof typeof MODEL_CONFIGS>).map(m => (
+                    <PromptInputModelSelectItem key={m} value={m}>{MODEL_CONFIGS[m].name}</PromptInputModelSelectItem>
                   ))}
                 </PromptInputModelSelectContent>
               </PromptInputModelSelect>

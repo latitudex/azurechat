@@ -22,12 +22,13 @@ export const ToolToggles = () => {
             <Button
               type="button"
               variant={webSearchEnabled ? "default" : "ghost"}
-              size="icon"
-              className={cn("h-8 w-8", webSearchEnabled && "bg-primary text-primary-foreground")}
+              size={webSearchEnabled ? "sm" : "icon"}
+              className={cn("h-8", webSearchEnabled ? "bg-primary text-primary-foreground gap-1 px-2" : "w-8")}
               onClick={() => chatStore.toggleWebSearch(!webSearchEnabled)}
               disabled={loading === "loading"}
             >
-              <Globe className="h-4 w-4" />
+              <Globe className="h-4 w-4 shrink-0" />
+              {webSearchEnabled && <span className="text-xs">Web</span>}
             </Button>
           </TooltipTrigger>
           <TooltipContent 
@@ -51,12 +52,13 @@ export const ToolToggles = () => {
             <Button
               type="button"
               variant={imageGenerationEnabled ? "default" : "ghost"}
-              size="icon"
-              className={cn("h-8 w-8", imageGenerationEnabled && "bg-primary text-primary-foreground")}
+              size={imageGenerationEnabled ? "sm" : "icon"}
+              className={cn("h-8", imageGenerationEnabled ? "bg-primary text-primary-foreground gap-1 px-2" : "w-8")}
               onClick={() => chatStore.toggleImageGeneration(!imageGenerationEnabled)}
               disabled={loading === "loading"}
             >
-              <ImageIcon className="h-4 w-4" />
+              <ImageIcon className="h-4 w-4 shrink-0" />
+              {imageGenerationEnabled && <span className="text-xs">Image</span>}
             </Button>
           </TooltipTrigger>
           <TooltipContent 
@@ -80,12 +82,13 @@ export const ToolToggles = () => {
             <Button
               type="button"
               variant={companyContentEnabled ? "default" : "ghost"}
-              size="icon"
-              className={cn("h-8 w-8", companyContentEnabled && "bg-primary text-primary-foreground")}
+              size={companyContentEnabled ? "sm" : "icon"}
+              className={cn("h-8", companyContentEnabled ? "bg-primary text-primary-foreground gap-1 px-2" : "w-8")}
               onClick={() => chatStore.toggleCompanyContent(!companyContentEnabled)}
               disabled={loading === "loading"}
             >
-              <Building2 className="h-4 w-4" />
+              <Building2 className="h-4 w-4 shrink-0" />
+              {companyContentEnabled && <span className="text-xs">Company</span>}
             </Button>
           </TooltipTrigger>
           <TooltipContent 
@@ -109,12 +112,13 @@ export const ToolToggles = () => {
             <Button
               type="button"
               variant={codeInterpreterEnabled ? "default" : "ghost"}
-              size="icon"
-              className={cn("h-8 w-8", codeInterpreterEnabled && "bg-primary text-primary-foreground")}
+              size={codeInterpreterEnabled ? "sm" : "icon"}
+              className={cn("h-8", codeInterpreterEnabled ? "bg-primary text-primary-foreground gap-1 px-2" : "w-8")}
               onClick={() => chatStore.toggleCodeInterpreter(!codeInterpreterEnabled)}
               disabled={loading === "loading"}
             >
-              <Code2 className="h-4 w-4" />
+              <Code2 className="h-4 w-4 shrink-0" />
+              {codeInterpreterEnabled && <span className="text-xs">Code</span>}
             </Button>
           </TooltipTrigger>
           <TooltipContent 
