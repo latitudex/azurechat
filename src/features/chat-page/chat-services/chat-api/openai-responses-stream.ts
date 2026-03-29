@@ -361,6 +361,30 @@ export const OpenAIResponsesStream = (props: {
       const totalCostWithSubAgents = costUsd + (subAgentUsage?.costUsd || 0);
       const totalTokensWithSubAgents = total_tokens + (subAgentUsage?.totalTokens || 0);
 
+      // Estimate thread totals from existing usage + current request
+      const existingUsage = chatThread.usage;
+      const estThreadInputTokens = (existingUsage?.totalInputTokens || 0) + totalInputWithSubAgents;
+      const estThreadOutputTokens = (existingUsage?.totalOutputTokens || 0) + totalOutputWithSubAgents;
+      const estThreadCostUsd = (existingUsage?.totalCostUsd || 0) + totalCostWithSubAgents;
+
+      // Send usageData SSE BEFORE finalContent so client receives it in order
+      const usageEvent: AzureChatCompletionUsageData = {
+        type: "usageData",
+        response: {
+          inputTokens: totalInputWithSubAgents,
+          outputTokens: totalOutputWithSubAgents,
+          cachedTokens: totalCachedWithSubAgents,
+          totalTokens: totalTokensWithSubAgents,
+          costUsd: totalCostWithSubAgents,
+          threadTotalCostUsd: estThreadCostUsd,
+          threadTotalTokens: estThreadInputTokens + estThreadOutputTokens,
+          contextWindowSize: modelConfig?.contextWindow || 128000,
+          contextUsagePercent: ((input_tokens) / (modelConfig?.contextWindow || 128000)) * 100,
+          model: modelId,
+        },
+      };
+      streamResponse(usageEvent.type, JSON.stringify(usageEvent));
+
       // Persist usage (fire-and-forget)
       const userId = await userHashedId();
       UpdateChatThreadUsage(
@@ -369,28 +393,7 @@ export const OpenAIResponsesStream = (props: {
         totalOutputWithSubAgents,
         totalCachedWithSubAgents,
         totalCostWithSubAgents
-      ).then(result => {
-        if (result.status === "OK" && result.response.usage) {
-          // Send usageData SSE event with updated thread totals
-          const threadUsage = result.response.usage;
-          const usageEvent: AzureChatCompletionUsageData = {
-            type: "usageData",
-            response: {
-              inputTokens: totalInputWithSubAgents,
-              outputTokens: totalOutputWithSubAgents,
-              cachedTokens: totalCachedWithSubAgents,
-              totalTokens: totalTokensWithSubAgents,
-              costUsd: totalCostWithSubAgents,
-              threadTotalCostUsd: threadUsage.totalCostUsd,
-              threadTotalTokens: threadUsage.totalInputTokens + threadUsage.totalOutputTokens,
-              contextWindowSize: modelConfig?.contextWindow || 128000,
-              contextUsagePercent: ((input_tokens) / (modelConfig?.contextWindow || 128000)) * 100,
-              model: modelId,
-            },
-          };
-          streamResponse(usageEvent.type, JSON.stringify(usageEvent));
-        }
-      }).catch(err => logError("Failed to update thread usage", { error: err.message }));
+      ).catch(err => logError("Failed to update thread usage", { error: err.message }));
 
       IncrementUsage(userId, modelId, totalInputWithSubAgents, totalOutputWithSubAgents, totalCachedWithSubAgents, totalCostWithSubAgents)
         .catch(err => logError("Failed to increment user usage", { error: err instanceof Error ? err.message : String(err) }));

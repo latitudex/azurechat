@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
-import { Coins } from "lucide-react";
+import { Activity } from "lucide-react";
 
 interface UsageData {
   daily: {
@@ -41,28 +41,24 @@ function getDailyResetLabel(): string {
   const diffMs = midnight.getTime() - now.getTime();
   const hours = Math.floor(diffMs / 3_600_000);
   const minutes = Math.floor((diffMs % 3_600_000) / 60_000);
-  if (hours > 0) return `resets in ${hours}h ${minutes}m`;
-  return `resets in ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
 function getWeeklyResetLabel(): string {
   const now = new Date();
-  // Reset on Friday 17:00
   const friday = new Date(now);
-  const dayOfWeek = now.getDay(); // 0=Sun, 5=Fri
+  const dayOfWeek = now.getDay();
   let daysUntilFri = (5 - dayOfWeek + 7) % 7;
-  // If it's Friday but past 17:00, next Friday
   if (daysUntilFri === 0 && now.getHours() >= 17) daysUntilFri = 7;
   friday.setDate(now.getDate() + daysUntilFri);
   friday.setHours(17, 0, 0, 0);
-
   const diffMs = friday.getTime() - now.getTime();
   const days = Math.floor(diffMs / 86_400_000);
   const hours = Math.floor((diffMs % 86_400_000) / 3_600_000);
-
-  if (days > 1) return `resets Fri 17:00 (${days}d)`;
-  if (days === 1) return `resets Fri 17:00 (1d ${hours}h)`;
-  return `resets in ${hours}h`;
+  if (days > 1) return `Fri 17:00 (${days}d)`;
+  if (days === 1) return `1d ${hours}h`;
+  return `${hours}h`;
 }
 
 export const UserUsage = () => {
@@ -71,12 +67,8 @@ export const UserUsage = () => {
   const fetchUsage = async () => {
     try {
       const res = await fetch("/api/usage");
-      if (res.ok) {
-        setUsage(await res.json());
-      }
-    } catch {
-      // Silently fail - usage display is non-critical
-    }
+      if (res.ok) setUsage(await res.json());
+    } catch { /* non-critical */ }
   };
 
   useEffect(() => {
@@ -93,57 +85,69 @@ export const UserUsage = () => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground px-1 py-1 rounded hover:bg-accent/50 active:bg-accent transition-colors cursor-pointer"
-          aria-label={`Today's token usage: ${formatTokens(usage.daily.totalTokens)}`}
+          className="flex items-center justify-center gap-1 text-[10px] tabular-nums text-muted-foreground px-1.5 py-1 rounded-md hover:bg-accent/50 active:bg-accent transition-colors cursor-pointer"
+          aria-label={`Today: ${formatTokens(usage.daily.totalTokens)} tokens`}
         >
-          <Coins size={10} />
+          <Activity size={10} className="shrink-0" />
           <span>{formatTokens(usage.daily.totalTokens)}</span>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="right" className="w-56" align="end">
-        <DropdownMenuLabel className="font-normal">
-          <div className="text-xs space-y-1">
-            <div className="flex items-baseline justify-between">
-              <p className="text-sm font-medium">Today</p>
-              <span className="text-[10px] text-muted-foreground">{getDailyResetLabel()}</span>
+      <DropdownMenuContent side="right" className="w-60" align="end">
+        {/* Daily */}
+        <DropdownMenuLabel className="font-normal pb-2">
+          <div className="flex items-baseline justify-between mb-2">
+            <p className="text-sm font-semibold tracking-tight">Today</p>
+            <span className="text-[10px] text-muted-foreground/70">resets in {getDailyResetLabel()}</span>
+          </div>
+          <div className="flex gap-4 text-xs">
+            <div>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wider mb-0.5">Tokens</p>
+              <p className="tabular-nums font-medium text-sm">{usage.daily.totalTokens.toLocaleString()}</p>
             </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-              <span className="text-muted-foreground">Tokens</span>
-              <span className="text-right">{usage.daily.totalTokens.toLocaleString()}</span>
-              <span className="text-muted-foreground">Est. cost</span>
-              <span className="text-right font-medium">{formatCost(usage.daily.totalCostUsd)}</span>
+            <div>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wider mb-0.5">Est. Cost</p>
+              <p className="tabular-nums font-medium text-sm">{formatCost(usage.daily.totalCostUsd)}</p>
             </div>
           </div>
         </DropdownMenuLabel>
+
+        {/* Weekly */}
         {usage.weekly.totalTokens > 0 && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="font-normal">
-              <div className="text-xs space-y-1">
-                <div className="flex items-baseline justify-between">
-                  <p className="text-sm font-medium">This Week</p>
-                  <span className="text-[10px] text-muted-foreground">{getWeeklyResetLabel()}</span>
+            <DropdownMenuLabel className="font-normal py-2">
+              <div className="flex items-baseline justify-between mb-2">
+                <p className="text-sm font-semibold tracking-tight">This Week</p>
+                <span className="text-[10px] text-muted-foreground/70">resets {getWeeklyResetLabel()}</span>
+              </div>
+              <div className="flex gap-4 text-xs">
+                <div>
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-wider mb-0.5">Tokens</p>
+                  <p className="tabular-nums font-medium text-sm">{usage.weekly.totalTokens.toLocaleString()}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-                  <span className="text-muted-foreground">Tokens</span>
-                  <span className="text-right">{usage.weekly.totalTokens.toLocaleString()}</span>
-                  <span className="text-muted-foreground">Est. cost</span>
-                  <span className="text-right font-medium">{formatCost(usage.weekly.totalCostUsd)}</span>
+                <div>
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-wider mb-0.5">Est. Cost</p>
+                  <p className="tabular-nums font-medium text-sm">{formatCost(usage.weekly.totalCostUsd)}</p>
                 </div>
               </div>
             </DropdownMenuLabel>
           </>
         )}
+
+        {/* Per-model breakdown */}
         {Object.keys(usage.daily.models).length > 0 && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="font-normal">
-              <div className="text-xs space-y-1">
-                <p className="text-sm font-medium">By Model (today)</p>
+            <DropdownMenuLabel className="font-normal pt-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Models (today)</p>
+              <div className="space-y-1">
                 {Object.entries(usage.daily.models).map(([model, data]) => (
-                  <div key={model} className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-                    <span className="text-muted-foreground truncate">{model}</span>
-                    <span className="text-right">{formatCost(data.costUsd)}</span>
+                  <div key={model} className="flex items-center justify-between text-xs">
+                    <span className="truncate text-muted-foreground">{model}</span>
+                    <div className="flex items-center gap-2 tabular-nums shrink-0">
+                      <span className="text-muted-foreground/70">{data.requestCount}req</span>
+                      <span className="font-medium w-14 text-right">{formatCost(data.costUsd)}</span>
+                    </div>
                   </div>
                 ))}
               </div>

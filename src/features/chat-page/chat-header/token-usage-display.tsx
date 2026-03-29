@@ -8,7 +8,6 @@ import {
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
 import { useChat } from "../chat-store";
-import { Coins } from "lucide-react";
 
 export const TokenUsageDisplay: FC = () => {
   const { lastUsageData } = useChat();
@@ -27,58 +26,105 @@ export const TokenUsageDisplay: FC = () => {
     return `$${cost.toFixed(2)}`;
   };
 
+  // Context ring data
+  const hasContext = lastUsageData.contextWindowSize > 0 && lastUsageData.inputTokens > 0;
+  const percent = hasContext ? Math.min(lastUsageData.contextUsagePercent, 100) : 0;
+  const radius = 6;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (percent / 100) * circumference;
+  const ringColor =
+    percent > 80 ? "text-red-500" : percent > 50 ? "text-yellow-500" : "text-primary/60";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="flex items-center gap-1 text-xs text-muted-foreground shrink-0 px-1.5 py-1 rounded hover:bg-accent/50 active:bg-accent transition-colors cursor-pointer"
-          aria-label={`Thread token usage: ${formatTokens(lastUsageData.threadTotalTokens)}`}
+          className="flex items-center gap-1.5 text-[11px] tabular-nums text-muted-foreground shrink-0 h-7 px-2 rounded-md border border-border/50 hover:border-border hover:bg-accent/40 active:bg-accent transition-all cursor-pointer"
+          aria-label={`Thread usage: ${formatTokens(lastUsageData.threadTotalTokens)} tokens`}
         >
-          <Coins size={14} />
+          {/* Context ring */}
+          {hasContext && (
+            <svg width="16" height="16" viewBox="0 0 16 16" className={ringColor} aria-hidden="true">
+              <circle cx="8" cy="8" r={radius} fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.15" />
+              <circle
+                cx="8" cy="8" r={radius} fill="none" stroke="currentColor" strokeWidth="1.5"
+                strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round" transform="rotate(-90 8 8)"
+                className="transition-all duration-700 ease-out"
+              />
+            </svg>
+          )}
           <span>{formatTokens(lastUsageData.threadTotalTokens)}</span>
+          {lastUsageData.threadTotalCostUsd > 0 && (
+            <>
+              <span className="text-border">|</span>
+              <span className="font-medium">{formatCost(lastUsageData.threadTotalCostUsd)}</span>
+            </>
+          )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="bottom" align="start" className="w-52">
-        <DropdownMenuLabel className="font-normal">
-          <div className="text-xs space-y-1">
-            <p className="text-sm font-medium">Thread Usage</p>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+      <DropdownMenuContent side="bottom" align="start" className="w-56">
+        <DropdownMenuLabel className="font-normal pb-2">
+          <p className="text-sm font-semibold tracking-tight mb-2">Thread Usage</p>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between">
               <span className="text-muted-foreground">Total tokens</span>
-              <span className="text-right">
-                {lastUsageData.threadTotalTokens.toLocaleString()}
-              </span>
-              <span className="text-muted-foreground">Last input</span>
-              <span className="text-right">
-                {lastUsageData.inputTokens.toLocaleString()}
-              </span>
-              <span className="text-muted-foreground">Last output</span>
-              <span className="text-right">
-                {lastUsageData.outputTokens.toLocaleString()}
-              </span>
-              {lastUsageData.cachedTokens > 0 && (
-                <>
-                  <span className="text-muted-foreground">Cached</span>
-                  <span className="text-right">
-                    {lastUsageData.cachedTokens.toLocaleString()}
-                  </span>
-                </>
-              )}
+              <span className="tabular-nums">{lastUsageData.threadTotalTokens.toLocaleString()}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Last input</span>
+              <span className="tabular-nums">{lastUsageData.inputTokens.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Last output</span>
+              <span className="tabular-nums">{lastUsageData.outputTokens.toLocaleString()}</span>
+            </div>
+            {lastUsageData.cachedTokens > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Cached</span>
+                <span className="tabular-nums">{lastUsageData.cachedTokens.toLocaleString()}</span>
+              </div>
+            )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel className="font-normal">
-          <div className="text-xs grid grid-cols-2 gap-x-3 gap-y-0.5">
-            <span className="text-muted-foreground">Last request</span>
-            <span className="text-right font-medium">
-              {formatCost(lastUsageData.costUsd)}
-            </span>
-            <span className="text-muted-foreground">Thread total</span>
-            <span className="text-right font-medium">
-              {formatCost(lastUsageData.threadTotalCostUsd)}
-            </span>
+        <DropdownMenuLabel className="font-normal py-2">
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Last request</span>
+              <span className="tabular-nums font-medium">{formatCost(lastUsageData.costUsd)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Thread total</span>
+              <span className="tabular-nums font-medium">{formatCost(lastUsageData.threadTotalCostUsd)}</span>
+            </div>
           </div>
         </DropdownMenuLabel>
+        {hasContext && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="font-normal pt-2">
+              <div className="text-xs">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-muted-foreground">Context window</span>
+                  <span className="tabular-nums">{percent.toFixed(1)}%</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ease-out ${
+                      percent > 80 ? "bg-red-500" : percent > 50 ? "bg-yellow-500" : "bg-primary/60"
+                    }`}
+                    style={{ width: `${Math.max(percent, 1)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
+                  <span>{formatTokens(lastUsageData.inputTokens)}</span>
+                  <span>{formatTokens(lastUsageData.contextWindowSize)}</span>
+                </div>
+              </div>
+            </DropdownMenuLabel>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
