@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/features/auth-page/helpers";
 import { CHAT_DEFAULT_SYSTEM_PROMPT } from "@/features/theme/theme-config";
 import { CreateChatMessage } from "../chat-message-service";
 import { EnsureChatThreadOperation, UpdateChatThreadCodeInterpreterContainer } from "../chat-thread-service";
-import { UserPrompt, MODEL_CONFIGS, ChatThreadModel } from "../models";
+import { UserPrompt, MODEL_CONFIGS, ChatThreadModel, ChatModel, DEFAULT_MODEL } from "../models";
 import { mapOpenAIChatMessages } from "../utils";
 import { FindTopChatMessagesForCurrentUser } from "../chat-message-service";
 import { 
@@ -20,8 +20,10 @@ import { OpenAIResponsesStream } from "./openai-responses-stream";
 import { createConversationState, startConversation, continueConversation, ConversationState } from "./conversation-manager";
 import { FindAllExtensionForCurrentUserAndIds, FindSecureHeaderValue } from "@/features/extensions-page/extension-services/extension-service";
 import { reportUserChatMessage } from "@/features/common/services/chat-metrics-service";
+import { CheckLimits } from "@/features/common/services/usage-service";
 import { FindAllChatDocuments } from "../chat-document-service";
 import { logDebug, logInfo, logError } from "@/features/common/services/logger";
+import { userHashedId } from "@/features/auth-page/helpers";
 
 const getFileIdsSignature = (fileIds?: string[]): string => {
   if (!fileIds || fileIds.length === 0) {
@@ -40,15 +42,43 @@ export const ChatAPIResponse = async (props: UserPrompt, signal: AbortSignal) =>
   }
 
   const currentChatThread = currentChatThreadResponse.response;
-  const selectedModel = props.selectedModel || "gpt-5.4";
-  const modelConfig = MODEL_CONFIGS[selectedModel];
+  let selectedModel: ChatModel = props.selectedModel || currentChatThread.selectedModel || DEFAULT_MODEL;
+  let modelConfig = MODEL_CONFIGS[selectedModel];
+
+  // Ensure the thread always has the correct selectedModel for usage tracking
+  currentChatThread.selectedModel = selectedModel;
   const reasoningEffort = props.reasoningEffort || modelConfig?.defaultReasoningEffort || "low";
+
+  // Check usage limits and apply fallback if needed
+  let fallbackInfo: { originalModel: string; fallbackModel: string; message: string; limitType: "tokens" | "cost"; currentUsage: number; limit: number } | undefined;
+  try {
+    const userId = await userHashedId();
+    const limitCheck = await CheckLimits(userId, selectedModel);
+    if (limitCheck.exceeded && limitCheck.fallbackModel) {
+      const fallbackConfig = MODEL_CONFIGS[limitCheck.fallbackModel];
+      if (fallbackConfig?.deploymentName) {
+        fallbackInfo = {
+          originalModel: selectedModel,
+          fallbackModel: limitCheck.fallbackModel,
+          message: `Daily ${limitCheck.limitType} limit reached for ${selectedModel}. Using ${limitCheck.fallbackModel} instead.`,
+          limitType: limitCheck.limitType!,
+          currentUsage: limitCheck.currentUsage!,
+          limit: limitCheck.limit!,
+        };
+        logInfo("Limit exceeded, falling back", fallbackInfo);
+        selectedModel = limitCheck.fallbackModel;
+        modelConfig = fallbackConfig;
+      }
+    }
+  } catch (err) {
+    logError("Failed to check limits", { error: err instanceof Error ? err.message : String(err) });
+  }
 
   // Validate model configuration
   if (!modelConfig?.deploymentName) {
-    logError("Missing deployment configuration", { 
-      selectedModel, 
-      availableModels: Object.keys(MODEL_CONFIGS) 
+    logError("Missing deployment configuration", {
+      selectedModel,
+      availableModels: Object.keys(MODEL_CONFIGS)
     });
     return new Response(`Missing deployment configuration for model ${selectedModel}`, { status: 500 });
   }
@@ -123,14 +153,27 @@ export const ChatAPIResponse = async (props: UserPrompt, signal: AbortSignal) =>
     }
   }
 
-  // Add call_sub_agent tool if sub-agents are configured
+  // Add sub-agent tools
   if (currentChatThread.subAgentIds && currentChatThread.subAgentIds.length > 0) {
+    // Persona-based chat: use pre-configured sub-agent list
     const subAgentTool = await buildSubAgentTool(currentChatThread.subAgentIds);
     if (subAgentTool) {
       tools.push(subAgentTool);
-      logInfo("Added call_sub_agent function", {
+      logInfo("Added call_sub_agent function (persona mode)", {
         subAgentCount: currentChatThread.subAgentIds.length,
       });
+    }
+  } else {
+    // Default chat flow: add search_sub_agent to discover agents, and call_sub_agent to invoke them
+    const searchSubAgentTool = await getToolByName("search_sub_agent");
+    if (searchSubAgentTool) {
+      tools.push(searchSubAgentTool);
+      logInfo("Added search_sub_agent function (default mode)");
+    }
+    const callSubAgentTool = await getToolByName("call_sub_agent");
+    if (callSubAgentTool) {
+      tools.push(callSubAgentTool);
+      logInfo("Added call_sub_agent function (default mode)");
     }
   }
 
@@ -362,6 +405,7 @@ export const ChatAPIResponse = async (props: UserPrompt, signal: AbortSignal) =>
             stream: currentStream,
             chatThread: currentChatThread,
             conversationState: currentState,
+            fallbackInfo,
             onContinue: async (updatedState: ConversationState) => {
               logDebug("Function calls complete, will continue conversation");
               currentState = updatedState;

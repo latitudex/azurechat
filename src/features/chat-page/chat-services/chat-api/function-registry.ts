@@ -8,7 +8,7 @@ import { logInfo, logDebug, logError } from "@/features/common/services/logger";
 import { AllowedPersonaDocumentIds } from "@/features/persona-page/persona-services/persona-documents-service";
 import { ConversationContext } from "./conversation-manager";
 import { FindPersonaByID, FindAllPersonaForCurrentUser } from "@/features/persona-page/persona-services/persona-service";
-import { MODEL_CONFIGS, ChatModel } from "../models";
+import { MODEL_CONFIGS, ChatModel, DEFAULT_MODEL } from "../models";
 
 // Type definitions for function calling
 export interface FunctionDefinition {
@@ -324,8 +324,11 @@ async function callSubAgent(
   });
 
   // Validate the agent_id is in the allowed sub-agent list for this chat thread
+  // In default mode (no pre-configured subAgentIds), any accessible agent can be called
   const allowedSubAgentIds = context.conversationContext.chatThread.subAgentIds || [];
-  if (!allowedSubAgentIds.includes(args.agent_id)) {
+  const isDefaultMode = allowedSubAgentIds.length === 0;
+
+  if (!isDefaultMode && !allowedSubAgentIds.includes(args.agent_id)) {
     logError("Sub-agent call denied: agent not in allowed list", {
       requestedAgentId: args.agent_id,
       allowedIds: allowedSubAgentIds,
@@ -352,10 +355,9 @@ async function callSubAgent(
   const subAgent = personaResponse.response;
 
   // Determine which model to use for the sub-agent
-  // Falls back to the model selected for the current chat thread, then to "gpt-5.4"
   const subAgentModelId = (subAgent.selectedModel as ChatModel) ||
     context.conversationContext.chatThread.selectedModel ||
-    "gpt-5.4";
+    DEFAULT_MODEL;
   const subAgentModelConfig = MODEL_CONFIGS[subAgentModelId];
 
   if (!subAgentModelConfig?.deploymentName) {
@@ -434,10 +436,27 @@ async function callSubAgent(
       .map((content: any) => content.text)
       .join("\n") || "";
 
+    // Capture sub-agent token usage for aggregation
+    let subAgentUsage: { inputTokens: number; outputTokens: number; cachedTokens: number; totalTokens: number; costUsd: number } | undefined;
+    if (response.usage) {
+      const saInput = response.usage.input_tokens || 0;
+      const saOutput = response.usage.output_tokens || 0;
+      const saTotal = response.usage.total_tokens || 0;
+      const saCached = (response.usage as any).input_tokens_details?.cached_tokens || 0;
+      const saPricing = subAgentModelConfig.pricing;
+      const saCost = saPricing
+        ? ((saInput - saCached) / 1_000_000) * saPricing.inputPerMillion +
+          (saCached / 1_000_000) * saPricing.cachedInputPerMillion +
+          (saOutput / 1_000_000) * saPricing.outputPerMillion
+        : 0;
+      subAgentUsage = { inputTokens: saInput, outputTokens: saOutput, cachedTokens: saCached, totalTokens: saTotal, costUsd: saCost };
+    }
+
     logInfo("Sub-agent call completed", {
       agentId: args.agent_id,
       agentName: subAgent.name,
       responseLength: outputText.length,
+      usage: subAgentUsage,
     });
 
     return {
@@ -446,6 +465,7 @@ async function callSubAgent(
       model: subAgentModelId,
       response: outputText,
       summary: `Agent "${subAgent.name}" responded successfully.`,
+      usage: subAgentUsage,
     };
   } catch (error) {
     logError("Sub-agent call failed", {
@@ -460,6 +480,52 @@ async function callSubAgent(
   }
 }
 
+// Search for available sub-agents by keyword
+async function searchSubAgent(
+  args: { query: string },
+  context: { conversationContext: ConversationContext; userMessage: string; signal: AbortSignal }
+) {
+  logInfo("Searching for sub-agents", {
+    query: args.query,
+    threadId: context.conversationContext.chatThread.id,
+  });
+
+  const allPersonasResponse = await FindAllPersonaForCurrentUser();
+  if (allPersonasResponse.status !== "OK") {
+    logError("Failed to fetch personas for sub-agent search");
+    return {
+      error: true,
+      summary: "Failed to search for agents. Please try again.",
+    };
+  }
+
+  const query = args.query.toLowerCase();
+  const matchingAgents = allPersonasResponse.response
+    .filter((persona) => {
+      const nameMatch = persona.name.toLowerCase().includes(query);
+      const descMatch = persona.description.toLowerCase().includes(query);
+      return nameMatch || descMatch;
+    })
+    .map((persona) => ({
+      id: persona.id,
+      name: persona.name,
+      description: persona.description,
+    }));
+
+  logInfo("Sub-agent search completed", {
+    query: args.query,
+    resultCount: matchingAgents.length,
+  });
+
+  return {
+    query: args.query,
+    agents: matchingAgents,
+    summary: matchingAgents.length > 0
+      ? `Found ${matchingAgents.length} agent(s) matching "${args.query}". Use call_sub_agent with the agent's id to delegate a task.`
+      : `No agents found matching "${args.query}". Try a different search term.`,
+  };
+}
+
 // Register built-in functions (will be called when needed)
 async function ensureBuiltInFunctionsRegistered() {
   if (!functionRegistry.has("search_documents")) {
@@ -470,6 +536,9 @@ async function ensureBuiltInFunctionsRegistered() {
   }
   if (!functionRegistry.has("call_sub_agent")) {
     await registerFunction("call_sub_agent", callSubAgent);
+  }
+  if (!functionRegistry.has("search_sub_agent")) {
+    await registerFunction("search_sub_agent", searchSubAgent);
   }
 }
 
@@ -550,6 +619,21 @@ export async function getToolByName(toolName: string): Promise<FunctionDefinitio
           task: {
             type: "string",
             description: "The task or question to delegate to the sub-agent. Be specific and provide all necessary context."
+          }
+        }
+      },
+      strict: true as const
+    },
+    {
+      type: "function" as const,
+      name: "search_sub_agent",
+      description: "Search for available specialized agents by keyword. Use this to find agents that can help with specific topics or tasks. Returns matching agents with their id, name, and description. After finding a relevant agent, use call_sub_agent to delegate a task to it.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Search keyword or phrase to find relevant agents. Matches against agent names and descriptions."
           }
         }
       },

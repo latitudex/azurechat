@@ -8,14 +8,20 @@ import {
   AzureChatCompletionReasoning,
   AzureChatCompletionFunctionCall,
   AzureChatCompletionFunctionCallResult,
+  AzureChatCompletionUsageData,
   ChatThreadModel,
   ChatMessageModel,
   MESSAGE_ATTRIBUTE,
+  MODEL_CONFIGS,
+  DEFAULT_MODEL,
+  UsageDataResponse,
 } from "../models";
-import { 
-  reportCompletionTokens, 
-  reportPromptTokens 
+import {
+  reportCompletionTokens,
+  reportPromptTokens
 } from "@/features/common/services/chat-metrics-service";
+import { UpdateChatThreadUsage } from "../chat-thread-service";
+import { IncrementUsage } from "@/features/common/services/usage-service";
 import { userHashedId } from "@/features/auth-page/helpers";
 import { 
   createConversationState, 
@@ -30,11 +36,12 @@ export const OpenAIResponsesStream = (props: {
   stream: Stream<Responses.ResponseStreamEvent>;
   chatThread: ChatThreadModel;
   conversationState?: ConversationState;
+  fallbackInfo?: { originalModel: string; fallbackModel: string; message: string; limitType: "tokens" | "cost"; currentUsage: number; limit: number };
   onComplete?: () => Promise<void>;
   onContinue?: (updatedState: ConversationState) => Promise<void>;
 }) => {
   const encoder = new TextEncoder();
-  const { stream, chatThread, conversationState, onComplete, onContinue } = props;
+  const { stream, chatThread, conversationState, fallbackInfo, onComplete, onContinue } = props;
   const codeInterpreterFileIdsSignature = (() => {
     const tools = conversationState?.context?.requestOptions?.tools;
     if (!Array.isArray(tools)) {
@@ -86,15 +93,16 @@ export const OpenAIResponsesStream = (props: {
 
   // Helper function to handle response completion
   const handleResponseCompletion = async (
-    event: any, 
-    lastMessage: string, 
-    reasoningContent: string, 
-    reasoningSummaries: Record<number, string>, 
-    messageId: string, 
-    chatThread: ChatThreadModel, 
-    controller: ReadableStreamDefaultController, 
+    event: any,
+    lastMessage: string,
+    reasoningContent: string,
+    reasoningSummaries: Record<number, string>,
+    messageId: string,
+    chatThread: ChatThreadModel,
+    controller: ReadableStreamDefaultController,
     streamResponse: (event: string, value: string) => void,
-    codeInterpreterFiles: Record<string, string> = {}
+    codeInterpreterFiles: Record<string, string> = {},
+    subAgentUsage?: { inputTokens: number; outputTokens: number; cachedTokens: number; totalTokens: number; costUsd: number }
   ) => {
     logInfo("Response completion handler called", { 
       eventType: event.type,
@@ -307,16 +315,21 @@ export const OpenAIResponsesStream = (props: {
     // Save message to database (use processedMessage with replaced URLs)
     await saveMessage(originalMessageId, processedMessage, finalReasoningContent, chatThread, undefined, encryptedReasoning);
 
-    // Report token usage
+    // Report token usage and calculate costs
     if (event.response?.usage) {
       const { input_tokens, output_tokens, total_tokens } = event.response.usage;
-      logInfo("Token usage", { 
+      const cachedTokens = event.response.usage.input_tokens_details?.cached_tokens || 0;
+      const modelId = chatThread.selectedModel || DEFAULT_MODEL;
+      const modelConfig = MODEL_CONFIGS[modelId];
+
+      logInfo("Token usage", {
         inputTokens: input_tokens,
         outputTokens: output_tokens,
-        totalTokens: total_tokens
+        totalTokens: total_tokens,
+        cachedTokens,
       });
-      
-      await reportCompletionTokens(output_tokens, chatThread.selectedModel || "gpt-5.4", {
+
+      await reportCompletionTokens(output_tokens, modelId, {
         personaMessageTitle: chatThread.personaMessageTitle,
         threadId: chatThread.id,
         messageId: originalMessageId,
@@ -324,11 +337,63 @@ export const OpenAIResponsesStream = (props: {
         inputTokens: input_tokens
       });
 
-      await reportPromptTokens(input_tokens, chatThread.selectedModel || "gpt-5.4", "user", {
+      await reportPromptTokens(input_tokens, modelId, "user", {
         personaMessageTitle: chatThread.personaMessageTitle,
         threadId: chatThread.id,
         messageId: originalMessageId
       });
+
+      // Calculate cost
+      const pricing = modelConfig?.pricing;
+      let costUsd = 0;
+      if (pricing) {
+        const nonCachedInput = input_tokens - cachedTokens;
+        costUsd =
+          (nonCachedInput / 1_000_000) * pricing.inputPerMillion +
+          (cachedTokens / 1_000_000) * pricing.cachedInputPerMillion +
+          (output_tokens / 1_000_000) * pricing.outputPerMillion;
+      }
+
+      // Accumulate sub-agent usage if present
+      const totalInputWithSubAgents = input_tokens + (subAgentUsage?.inputTokens || 0);
+      const totalOutputWithSubAgents = output_tokens + (subAgentUsage?.outputTokens || 0);
+      const totalCachedWithSubAgents = cachedTokens + (subAgentUsage?.cachedTokens || 0);
+      const totalCostWithSubAgents = costUsd + (subAgentUsage?.costUsd || 0);
+      const totalTokensWithSubAgents = total_tokens + (subAgentUsage?.totalTokens || 0);
+
+      // Persist usage (fire-and-forget)
+      const userId = await userHashedId();
+      UpdateChatThreadUsage(
+        chatThread.id,
+        totalInputWithSubAgents,
+        totalOutputWithSubAgents,
+        totalCachedWithSubAgents,
+        totalCostWithSubAgents
+      ).then(result => {
+        if (result.status === "OK" && result.response.usage) {
+          // Send usageData SSE event with updated thread totals
+          const threadUsage = result.response.usage;
+          const usageEvent: AzureChatCompletionUsageData = {
+            type: "usageData",
+            response: {
+              inputTokens: totalInputWithSubAgents,
+              outputTokens: totalOutputWithSubAgents,
+              cachedTokens: totalCachedWithSubAgents,
+              totalTokens: totalTokensWithSubAgents,
+              costUsd: totalCostWithSubAgents,
+              threadTotalCostUsd: threadUsage.totalCostUsd,
+              threadTotalTokens: threadUsage.totalInputTokens + threadUsage.totalOutputTokens,
+              contextWindowSize: modelConfig?.contextWindow || 128000,
+              contextUsagePercent: ((input_tokens) / (modelConfig?.contextWindow || 128000)) * 100,
+              model: modelId,
+            },
+          };
+          streamResponse(usageEvent.type, JSON.stringify(usageEvent));
+        }
+      }).catch(err => logError("Failed to update thread usage", { error: err.message }));
+
+      IncrementUsage(userId, modelId, totalInputWithSubAgents, totalOutputWithSubAgents, totalCachedWithSubAgents, totalCostWithSubAgents)
+        .catch(err => logError("Failed to increment user usage", { error: err instanceof Error ? err.message : String(err) }));
     }
 
     // Send final response and close (use processedMessage with replaced URLs)
@@ -389,6 +454,25 @@ export const OpenAIResponsesStream = (props: {
       let currentConversationState = conversationState; // Use passed conversation state
       // Track Code Interpreter files: maps filename to stored URL
       let codeInterpreterFiles: Record<string, string> = {};
+      // Accumulated sub-agent token usage
+      let subAgentUsage: { inputTokens: number; outputTokens: number; cachedTokens: number; totalTokens: number; costUsd: number } | undefined;
+
+      // Emit usage warning if a model fallback was applied
+      if (fallbackInfo) {
+        const warningEvent: AzureChatCompletion = {
+          type: "usageWarning",
+          response: {
+            message: fallbackInfo.message,
+            originalModel: fallbackInfo.originalModel,
+            fallbackModel: fallbackInfo.fallbackModel,
+            limitType: fallbackInfo.limitType,
+            currentUsage: fallbackInfo.currentUsage,
+            limit: fallbackInfo.limit,
+          },
+        };
+        streamResponse("usageWarning", JSON.stringify(warningEvent));
+      }
+
       // Use a consistent message ID across the entire conversation
       const messageId = conversationState?.messageId || uniqueId();
       logDebug("OpenAI Responses Stream: Using message ID", {
@@ -580,6 +664,21 @@ export const OpenAIResponsesStream = (props: {
                         break;
                       }
                     }
+
+                    // Accumulate sub-agent usage if present in the result
+                    try {
+                      const parsed = JSON.parse(result.result!);
+                      if (parsed.usage) {
+                        if (!subAgentUsage) {
+                          subAgentUsage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalTokens: 0, costUsd: 0 };
+                        }
+                        subAgentUsage.inputTokens += parsed.usage.inputTokens || 0;
+                        subAgentUsage.outputTokens += parsed.usage.outputTokens || 0;
+                        subAgentUsage.cachedTokens += parsed.usage.cachedTokens || 0;
+                        subAgentUsage.totalTokens += parsed.usage.totalTokens || 0;
+                        subAgentUsage.costUsd += parsed.usage.costUsd || 0;
+                      }
+                    } catch { /* result is not JSON or has no usage */ }
 
                     // Persist tool call as a separate tool message for refresh resilience
                     try {
@@ -958,7 +1057,7 @@ export const OpenAIResponsesStream = (props: {
                 codeInterpreterFilesCount: Object.keys(codeInterpreterFiles).length,
                 filesMapped: Object.keys(codeInterpreterFiles)
               });
-              await handleResponseCompletion(event, lastMessage, reasoningContent, reasoningSummaries, messageId, chatThread, controller, streamResponse, codeInterpreterFiles);
+              await handleResponseCompletion(event, lastMessage, reasoningContent, reasoningSummaries, messageId, chatThread, controller, streamResponse, codeInterpreterFiles, subAgentUsage);
               return;
 
             case "error":

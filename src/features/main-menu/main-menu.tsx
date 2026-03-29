@@ -18,6 +18,7 @@ import {
 import { UserModel } from "../auth-page/helpers";
 import { MenuLink } from "./menu-link";
 import { UserProfile } from "./user-profile";
+import { UserUsage } from "./user-usage";
 import { useMenuState, menuStore } from "./menu-store";
 
 interface MainMenuProps {
@@ -82,6 +83,7 @@ export const MainMenu = ({ user }: MainMenuProps) => {
           )}
         </MenuItemContainer>
         <MenuItemContainer>
+          <UserUsage />
           <MenuItem tooltip="Profile">
             <UserProfile />
           </MenuItem>

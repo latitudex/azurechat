@@ -23,7 +23,7 @@ import { SoftDeleteChatDocumentsForCurrentUser } from "./chat-services/chat-thre
 import { RevalidateCache } from "@/features/common/navigation-helpers";
 import { InternetSearch } from "@/features/ui/chat/chat-input-area/internet-search";
 import { ReasoningEffortSelector } from "./chat-input/reasoning-effort-selector";
-import { MODEL_CONFIGS } from "./chat-services/models";
+import { MODEL_CONFIGS, DEFAULT_MODEL } from "./chat-services/models";
 
 import { ToolToggles } from "./chat-input/tool-toggles";
 import { InputImageStore, useInputImage } from "@/features/ui/chat/chat-input-area/input-image-store";
@@ -154,7 +154,7 @@ export const ChatPage = (props: ChatPageProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Ensure we always have a valid model selected
-  const effectiveModel = selectedModel && MODEL_CONFIGS[selectedModel] ? selectedModel : "gpt-5.4";
+  const effectiveModel = selectedModel && MODEL_CONFIGS[selectedModel] ? selectedModel : DEFAULT_MODEL;
 
   const internetSearch = useMemo(() => props.extensions.find(e => e.name === "Bing Search"), [props.extensions]);
   

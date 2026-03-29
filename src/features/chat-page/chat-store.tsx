@@ -22,11 +22,15 @@ import {
 } from "./chat-services/chat-thread-service";
 import {
   AzureChatCompletion,
+  AzureChatCompletionUsageData,
+  AzureChatCompletionUsageWarning,
   ChatMessageModel,
   ChatThreadModel,
   ChatModel,
   ReasoningEffort,
   AttachedFileModel,
+  UsageDataResponse,
+  DEFAULT_MODEL,
   getDefaultModel as getDefaultModelFromAPI,
   MODEL_CONFIGS,
 } from "./chat-services/models";
@@ -45,7 +49,7 @@ class ChatState {
   public autoScroll: boolean = true;
   public userName: string = "";
   public chatThreadId: string = "";
-  public selectedModel: ChatModel = "gpt-5.4"; // Will be updated when available models are fetched
+  public selectedModel: ChatModel = DEFAULT_MODEL;
   public reasoningEffort: ReasoningEffort = "low";
   public webSearchEnabled: boolean = false;
   public imageGenerationEnabled: boolean = false;
@@ -59,6 +63,10 @@ class ChatState {
   public toolCallHistory: Record<string, Array<{ name: string; arguments: string; result?: string; timestamp: Date; callId?: string }>> = {};
   public toolCallInProgress: Record<string, string | null> = {};
   public reasoningMeta: Record<string, { start: number; elapsed: number; isStreaming: boolean }> = {};
+
+  // Token usage tracking
+  public lastUsageData: UsageDataResponse | null = null;
+  public usageWarning: { message: string; originalModel: string; fallbackModel: string } | null = null;
 
   private addToMessages(message: ChatMessageModel) {
     const currentMessageIndex = this.messages.findIndex((el) => el.id === message.id);
@@ -126,7 +134,7 @@ class ChatState {
       this.chatThreadId = chatThread.id;
       this.messages = messages;
       const threadModel = chatThread.selectedModel;
-      this.selectedModel = (threadModel && MODEL_CONFIGS[threadModel]) ? threadModel : "gpt-5.4";
+      this.selectedModel = (threadModel && MODEL_CONFIGS[threadModel]) ? threadModel : DEFAULT_MODEL;
       this.toolCallHistory = {};
       this.tempReasoningContent = "";
       this.currentAssistantMessageId = "";
@@ -163,6 +171,26 @@ class ChatState {
           });
         }
       });
+
+      // Initialize usage data from thread if available
+      if (chatThread.usage) {
+        const modelConfig = MODEL_CONFIGS[this.selectedModel];
+        this.lastUsageData = {
+          inputTokens: 0,
+          outputTokens: 0,
+          cachedTokens: 0,
+          totalTokens: 0,
+          costUsd: 0,
+          threadTotalCostUsd: chatThread.usage.totalCostUsd,
+          threadTotalTokens: chatThread.usage.totalInputTokens + chatThread.usage.totalOutputTokens,
+          contextWindowSize: modelConfig?.contextWindow || 128000,
+          contextUsagePercent: 0,
+          model: this.selectedModel,
+        };
+      } else {
+        this.lastUsageData = null;
+      }
+      this.usageWarning = null;
     }
     
     this.userName = userName;
@@ -889,6 +917,20 @@ class ChatState {
               }
               this.currentAssistantMessageId = "";
               // Note: currentToolCall UI removed
+              break;
+            case "usageData":
+              this.lastUsageData = (responseType as AzureChatCompletionUsageData).response;
+              logDebug("Chat Store: Received usage data", { usage: this.lastUsageData });
+              break;
+            case "usageWarning":
+              const warning = (responseType as AzureChatCompletionUsageWarning).response;
+              this.usageWarning = {
+                message: warning.message,
+                originalModel: warning.originalModel,
+                fallbackModel: warning.fallbackModel,
+              };
+              showError(`Model limit reached for ${warning.originalModel}. Using ${warning.fallbackModel} instead.`);
+              logInfo("Chat Store: Usage warning received", { warning });
               break;
             default:
               // Handle informational events that don't require UI updates

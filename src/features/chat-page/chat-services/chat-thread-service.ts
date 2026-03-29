@@ -19,6 +19,7 @@ import { FindAllChatDocuments } from "./chat-document-service";
 import { FindAllChatMessagesForCurrentUser } from "./chat-message-service";
 import {
   CHAT_THREAD_ATTRIBUTE,
+  DEFAULT_MODEL,
   ChatDocumentModel,
   ChatMessageModel,
   ChatThreadModel,
@@ -371,6 +372,7 @@ export const CreateChatThread = async (options?: {
       type: CHAT_THREAD_ATTRIBUTE,
       personaMessage: "",
       personaMessageTitle: CHAT_DEFAULT_PERSONA,
+      selectedModel: DEFAULT_MODEL,
       extension: [],
       personaDocumentIds: [],
       isTemporary: options?.temporary ?? false,
@@ -560,6 +562,42 @@ export const RemoveAttachedFile = async (
     if (response.status === "OK") {
       const chatThread = response.response;
       chatThread.attachedFiles = (chatThread.attachedFiles || []).filter(f => f.id !== fileId);
+      return await UpsertChatThread(chatThread);
+    }
+    return response;
+  } catch (error) {
+    return {
+      status: "ERROR",
+      errors: [{ message: `${error}` }],
+    };
+  }
+};
+
+export const UpdateChatThreadUsage = async (
+  chatThreadId: string,
+  inputTokens: number,
+  outputTokens: number,
+  cachedTokens: number,
+  costUsd: number
+): Promise<ServerActionResponse<ChatThreadModel>> => {
+  try {
+    const response = await FindChatThreadForCurrentUser(chatThreadId);
+    if (response.status === "OK") {
+      const chatThread = response.response;
+      const existing = chatThread.usage || {
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalCachedTokens: 0,
+        totalCostUsd: 0,
+        lastUpdated: new Date().toISOString(),
+      };
+      chatThread.usage = {
+        totalInputTokens: existing.totalInputTokens + inputTokens,
+        totalOutputTokens: existing.totalOutputTokens + outputTokens,
+        totalCachedTokens: existing.totalCachedTokens + cachedTokens,
+        totalCostUsd: existing.totalCostUsd + costUsd,
+        lastUpdated: new Date().toISOString(),
+      };
       return await UpsertChatThread(chatThread);
     }
     return response;

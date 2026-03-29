@@ -5,16 +5,23 @@ import {
 } from "@/features/common/services/openai";
 import { logError } from "@/features/common/services/logger";
 
+export const DEFAULT_MODEL: ChatModel = "gpt-5.4";
+
 export const CHAT_DOCUMENT_ATTRIBUTE = "CHAT_DOCUMENT";
 export const CHAT_THREAD_ATTRIBUTE = "CHAT_THREAD";
 export const MESSAGE_ATTRIBUTE = "CHAT_MESSAGE";
 export const CHAT_CITATION_ATTRIBUTE = "CHAT_CITATION";
 
 export type ChatModel =
-  | "gpt-5.2"
-  | "gpt-5.3-chat"
   | "gpt-5.4"
-  | "gpt-5.4-mini";
+  | "gpt-5.4-mini"
+  | "gpt-5.3-chat";
+
+export interface ModelPricing {
+  inputPerMillion: number;
+  outputPerMillion: number;
+  cachedInputPerMillion: number;
+}
 
 export interface ModelConfig {
   id: ChatModel;
@@ -28,40 +35,27 @@ export interface ModelConfig {
   supportsComputerUse?: boolean;
   deploymentName?: string;
   defaultReasoningEffort?: ReasoningEffort;
+  pricing: ModelPricing;
+  contextWindow: number;
+  fallbackModel?: ChatModel;
+  dailyTokenLimit?: number;
+  dailyCostLimit?: number;
 }
 
 export const MODEL_CONFIGS: Record<ChatModel, ModelConfig> = {
-  "gpt-5.2": {
-    id: "gpt-5.2",
-    name: "GPT-5.2",
-    description: "Latest GPT-5.2 model with enhanced capabilities",
-    getInstance: () => OpenAIV1ReasoningInstance(),
-    supportsReasoning: true,
-    supportsResponsesAPI: true,
-    supportsImageGeneration: true,
-    deploymentName: process.env.AZURE_OPENAI_API_GPT52_DEPLOYMENT_NAME,
-    defaultReasoningEffort: "low"
-  },
-  "gpt-5.3-chat": {
-    id: "gpt-5.3-chat",
-    name: "GPT-5.3 Chat",
-    description: "Latest GPT-5.3 Chat model optimized for conversational interactions",
-    getInstance: () => OpenAIV1Instance(),
-    supportsReasoning: true,
-    supportsResponsesAPI: true,
-    deploymentName: process.env.AZURE_OPENAI_API_GPT53_CHAT_DEPLOYMENT_NAME,
-    defaultReasoningEffort: "medium"
-  },
   "gpt-5.4": {
     id: "gpt-5.4",
     name: "GPT-5.4",
-    description: "Latest GPT-5.4 model with advanced capabilities",
+    description: "Latest GPT-5.4 model with state-of-the-art capabilities",
     getInstance: () => OpenAIV1ReasoningInstance(),
     supportsReasoning: true,
     supportsResponsesAPI: true,
     supportsImageGeneration: true,
     deploymentName: process.env.AZURE_OPENAI_API_GPT54_DEPLOYMENT_NAME,
-    defaultReasoningEffort: "low"
+    defaultReasoningEffort: "low",
+    pricing: { inputPerMillion: 2.50, outputPerMillion: 15.00, cachedInputPerMillion: 0.25 },
+    contextWindow: 1050000,
+    fallbackModel: "gpt-5.4-mini",
   },
   "gpt-5.4-mini": {
     id: "gpt-5.4-mini",
@@ -71,7 +65,22 @@ export const MODEL_CONFIGS: Record<ChatModel, ModelConfig> = {
     supportsReasoning: false,
     supportsResponsesAPI: true,
     deploymentName: process.env.AZURE_OPENAI_API_GPT54_MINI_DEPLOYMENT_NAME,
-    defaultReasoningEffort: "medium"
+    defaultReasoningEffort: "medium",
+    pricing: { inputPerMillion: 0.75, outputPerMillion: 4.50, cachedInputPerMillion: 0.075 },
+    contextWindow: 400000,
+  },
+  "gpt-5.3-chat": {
+    id: "gpt-5.3-chat",
+    name: "GPT-5.3 Chat",
+    description: "GPT-5.3 Chat model optimized for conversational interactions",
+    getInstance: () => OpenAIV1Instance(),
+    supportsReasoning: true,
+    supportsResponsesAPI: true,
+    deploymentName: process.env.AZURE_OPENAI_API_GPT53_CHAT_DEPLOYMENT_NAME,
+    defaultReasoningEffort: "medium",
+    pricing: { inputPerMillion: 1.75, outputPerMillion: 14.00, cachedInputPerMillion: 0.175 },
+    contextWindow: 128000,
+    fallbackModel: "gpt-5.4-mini",
   },
 };
 
@@ -131,8 +140,7 @@ export async function getDefaultModel(): Promise<ChatModel> {
     logError("Error fetching default model", { 
       error: error instanceof Error ? error.message : String(error) 
     });
-    // Fallback to gpt-5.4 if API fails
-    return "gpt-5.4";
+    return DEFAULT_MODEL;
   }
 }
 
@@ -181,6 +189,14 @@ export interface AttachedFileModel {
   uploadedAt?: Date;
 }
 
+export interface ThreadUsage {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCachedTokens: number;
+  totalCostUsd: number;
+  lastUpdated: string;
+}
+
 export interface DefaultTools {
   webSearch?: boolean;
   imageGeneration?: boolean;
@@ -209,6 +225,7 @@ export interface ChatThreadModel {
   codeInterpreterFileIdsSignature?: string;
   attachedFiles?: Array<AttachedFileModel>;
   subAgentIds?: string[];
+  usage?: ThreadUsage;
   defaultTools?: DefaultTools;
 }
 
@@ -294,6 +311,36 @@ export type AzureChatCompletionReasoning = {
   response: string;
 };
 
+export interface UsageDataResponse {
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  threadTotalCostUsd: number;
+  threadTotalTokens: number;
+  contextWindowSize: number;
+  contextUsagePercent: number;
+  model: string;
+}
+
+export type AzureChatCompletionUsageData = {
+  type: "usageData";
+  response: UsageDataResponse;
+};
+
+export type AzureChatCompletionUsageWarning = {
+  type: "usageWarning";
+  response: {
+    message: string;
+    originalModel: string;
+    fallbackModel: string;
+    limitType: "tokens" | "cost";
+    currentUsage: number;
+    limit: number;
+  };
+};
+
 export type AzureChatCompletion =
   | AzureChatCompletionError
   | AzureChatCompletionFunctionCall
@@ -301,7 +348,9 @@ export type AzureChatCompletion =
   | AzureChatCompletionContent
   | AzureChatCompletionFinalContent
   | AzureChatCompletionAbort
-  | AzureChatCompletionReasoning;
+  | AzureChatCompletionReasoning
+  | AzureChatCompletionUsageData
+  | AzureChatCompletionUsageWarning;
 
 // https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/prebuilt/read?view=doc-intel-4.0.0&tabs=sample-code#input-requirements-v4
 export enum SupportedFileExtensionsDocumentIntellicence {

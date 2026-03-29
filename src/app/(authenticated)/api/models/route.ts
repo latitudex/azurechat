@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { MODEL_CONFIGS, ChatModel, ModelConfig } from "@/features/chat-page/chat-services/models";
+import { MODEL_CONFIGS, ChatModel, ModelConfig, DEFAULT_MODEL } from "@/features/chat-page/chat-services/models";
 import { logError } from "@/features/common/services/logger";
 
 /**
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     
     const availableModelIds = Object.keys(availableModels) as ChatModel[];
     
-    const defaultModel = availableModelIds.length > 0 ? availableModelIds[0] : "gpt-5.4";
+    const defaultModel = availableModelIds.length > 0 ? availableModelIds[0] : DEFAULT_MODEL;
     return NextResponse.json({
       availableModels,
       availableModelIds,
