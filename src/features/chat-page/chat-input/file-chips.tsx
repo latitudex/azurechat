@@ -47,12 +47,12 @@ const getFileTypeLabel = (fileName: string) => {
 export const FileChips = ({ chatDocuments }: FileChipsProps) => {
   const { attachedFiles, chatThreadId } = useChat();
   const codeInterpreterFiles = attachedFiles.filter(f => f.type === "code-interpreter");
-  const { previewImage, fileUrl } = useInputImage();
+  const { previewImages } = useInputImage();
 
   const hasCodeInterpreterFiles = codeInterpreterFiles.length > 0;
-  const hasImage = !!previewImage;
+  const hasImages = previewImages.length > 0;
   const hasDocuments = chatDocuments.length > 0;
-  const hasAnyFiles = hasCodeInterpreterFiles || hasImage || hasDocuments;
+  const hasAnyFiles = hasCodeInterpreterFiles || hasImages || hasDocuments;
 
   const handleRemoveCodeInterpreterFile = async (fileId: string) => {
     try {
@@ -72,10 +72,6 @@ export const FileChips = ({ chatDocuments }: FileChipsProps) => {
         `Failed to remove Code Interpreter file: ${error instanceof Error ? error.message : String(error)}`
       );
     }
-  };
-
-  const handleRemoveImage = () => {
-    InputImageStore.Reset();
   };
 
   const handleRemoveAllDocuments = async () => {
@@ -112,14 +108,14 @@ export const FileChips = ({ chatDocuments }: FileChipsProps) => {
         </div>
       ))}
 
-      {hasImage && (
-        <div className="relative group">
+      {previewImages.map((img, idx) => (
+        <div key={`img-${idx}`} className="relative group">
           <div className="flex items-center gap-2 bg-muted border rounded-lg px-3 py-2 pr-8">
             <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0">
-              <img src={previewImage} alt="Attached" className="w-full h-full object-cover" />
+              <img src={img} alt={`Attached ${idx + 1}`} className="w-full h-full object-cover" />
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-sm font-medium truncate max-w-[150px]">{fileUrl || "Bild"}</span>
+              <span className="text-sm font-medium truncate max-w-[150px]">Bild</span>
               <span className="text-xs text-muted-foreground">Bild</span>
             </div>
           </div>
@@ -127,12 +123,12 @@ export const FileChips = ({ chatDocuments }: FileChipsProps) => {
             variant="ghost"
             size="icon"
             className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-background border shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
-            onClick={handleRemoveImage}
+            onClick={() => InputImageStore.RemoveImage(idx)}
           >
             <X className="h-3 w-3" />
           </Button>
         </div>
-      )}
+      ))}
 
       {chatDocuments.map((doc, index) => (
         <div key={`doc-${index}`} className="relative group">

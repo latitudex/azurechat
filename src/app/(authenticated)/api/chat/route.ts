@@ -10,11 +10,14 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const content = formData.get("content") as unknown as string;
-    const multimodalImage = formData.get("image-base64") as unknown as string;
+    const multimodalImages = formData
+      .getAll("image-base64")
+      .filter((v): v is string => typeof v === "string" && v.length > 0);
 
     const userPrompt: UserPrompt = {
       ...JSON.parse(content),
-      multimodalImage,
+      multimodalImage: multimodalImages[0] || "",
+      multimodalImages,
     };
 
     return await ChatAPIEntry(userPrompt, req.signal);

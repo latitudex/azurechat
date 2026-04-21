@@ -13,13 +13,24 @@ export const mapOpenAIChatMessages = async (
       continue;
     }
 
-    if (message.role === "user" && message.multiModalImage) {
+    if (message.role === "user" && (message.multiModalImages?.length || message.multiModalImage)) {
+      const images = message.multiModalImages?.length
+        ? message.multiModalImages
+        : [message.multiModalImage!];
+
+      const imageContent = await Promise.all(
+        images.map(async (img) => ({
+          type: "input_image" as const,
+          image_url: await getBase64ImageReference(img),
+        }))
+      );
+
       mappedMessages.push({
         type: "message",
         role: message.role as any,
         content: [
           { type: "input_text", text: message.content },
-          { type: "input_image", image_url: await getBase64ImageReference(message.multiModalImage || "") },
+          ...imageContent,
         ] as any,
       } as ResponseInputItem);
       continue;

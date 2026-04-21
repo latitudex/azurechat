@@ -7,9 +7,14 @@ import { logError, logDebug } from "@/features/common/services/logger";
 
 export const ChatAPIEntry = async (props: UserPrompt, signal: AbortSignal) => {
   try {
-    // Validate multimodal image if provided
-    if (props.multimodalImage) {
-      const base64Image = props.multimodalImage;
+    // Validate all multimodal images
+    const imagesToValidate = props.multimodalImages?.length
+      ? props.multimodalImages
+      : props.multimodalImage
+        ? [props.multimodalImage]
+        : [];
+
+    for (const base64Image of imagesToValidate) {
       const matches = base64Image.match(/^data:image\/([a-zA-Z]+);base64,/);
       const fileExtension = matches ? matches[1] : null;
 

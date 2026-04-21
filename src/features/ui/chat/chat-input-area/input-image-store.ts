@@ -1,23 +1,44 @@
 import { proxy, useSnapshot } from "valtio";
 
 class InputImageState {
-  public previewImage: string = "";
-  public base64Image: string = "";
-  public fileUrl: string = "";
+  public previewImages: string[] = [];
+  public base64Images: string[] = [];
+
+  /** Back-compat: returns first preview image or empty string */
+  get previewImage(): string {
+    return this.previewImages[0] || "";
+  }
+
+  /** Back-compat: returns first base64 image or empty string */
+  get base64Image(): string {
+    return this.base64Images[0] || "";
+  }
 
   get PreViewImage() {
     return this.previewImage;
   }
 
+  /** Add a new image without removing existing ones */
+  public AddImage(image: string) {
+    this.base64Images.push(image);
+    this.previewImages.push(image);
+  }
+
+  /** Back-compat: overwrites all images with a single one */
   public UpdateBase64Image(image: Base64URLString) {
-    this.base64Image = image;
-    this.previewImage = image;
+    this.base64Images = [image];
+    this.previewImages = [image];
+  }
+
+  /** Remove a specific image by index */
+  public RemoveImage(index: number) {
+    this.base64Images.splice(index, 1);
+    this.previewImages.splice(index, 1);
   }
 
   public Reset() {
-    this.previewImage = "";
-    this.base64Image = "";
-    this.fileUrl = "";
+    this.previewImages = [];
+    this.base64Images = [];
   }
 
   private fileToBase64(file: File): Promise<string> {
@@ -38,10 +59,7 @@ class InputImageState {
     const file = event.target.files?.[0];
     if (file) {
       const base64 = await this.fileToBase64(file);
-      const url = URL.createObjectURL(file);
-      this.previewImage = url;
-      this.base64Image = base64;
-      this.fileUrl = file.name;
+      this.AddImage(base64);
     }
   }
 }

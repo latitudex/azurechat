@@ -135,8 +135,9 @@ export const resolveImageReference = async (reference: string): Promise<ServerAc
 export const processMessageForImagePersistence = async (
   threadId: string,
   content: string,
-  multiModalImage?: string
-): Promise<{ content: string; multiModalImage?: string }> => {
+  multiModalImage?: string,
+  multiModalImages?: string[]
+): Promise<{ content: string; multiModalImage?: string; multiModalImages?: string[] }> => {
   let processedContent = content;
   let processedMultiModalImage = multiModalImage;
 
@@ -149,8 +150,27 @@ export const processMessageForImagePersistence = async (
     }
   }
 
-  // Process multiModalImage if present
-  if (multiModalImage && isBase64Image(multiModalImage)) {
+  // Process multiModalImages array if present
+  let processedMultiModalImages: string[] | undefined;
+  if (multiModalImages && multiModalImages.length > 0) {
+    processedMultiModalImages = [];
+    for (const img of multiModalImages) {
+      if (isBase64Image(img)) {
+        logDebug("Detected base64 image in multiModalImages", { threadId });
+        const persistResult = await persistBase64Image(threadId, img);
+        if (persistResult.status === "OK") {
+          processedMultiModalImages.push(persistResult.response);
+        } else {
+          processedMultiModalImages.push(img);
+        }
+      } else {
+        processedMultiModalImages.push(img);
+      }
+    }
+    // Keep single-image field in sync with first image
+    processedMultiModalImage = processedMultiModalImages[0];
+  } else if (multiModalImage && isBase64Image(multiModalImage)) {
+    // Back-compat: process single image if no array provided
     logDebug("Detected base64 image in multiModalImage", { threadId });
     const persistResult = await persistBase64Image(threadId, multiModalImage);
     if (persistResult.status === "OK") {
@@ -160,7 +180,8 @@ export const processMessageForImagePersistence = async (
 
   return {
     content: processedContent,
-    multiModalImage: processedMultiModalImage
+    multiModalImage: processedMultiModalImage,
+    multiModalImages: processedMultiModalImages
   };
 };
 
@@ -226,8 +247,9 @@ export const getBase64ImageReference = async (
  */
 export const processMessageForImageResolution = async (
   content: string,
-  multiModalImage?: string
-): Promise<{ content: string; multiModalImage?: string }> => {
+  multiModalImage?: string,
+  multiModalImages?: string[]
+): Promise<{ content: string; multiModalImage?: string; multiModalImages?: string[] }> => {
   let resolvedContent = content;
   let resolvedMultiModalImage = multiModalImage;
 
@@ -240,8 +262,26 @@ export const processMessageForImageResolution = async (
     }
   }
 
-    // Resolve image references in multiModalImage
-  if (multiModalImage && isImageReference(multiModalImage)) {
+  // Resolve image references in multiModalImages array
+  let resolvedMultiModalImages: string[] | undefined;
+  if (multiModalImages && multiModalImages.length > 0) {
+    resolvedMultiModalImages = [];
+    for (const img of multiModalImages) {
+      if (isImageReference(img)) {
+        logDebug("Resolving image reference in multiModalImages");
+        const resolveResult = await resolveImageReference(img);
+        if (resolveResult.status === "OK") {
+          resolvedMultiModalImages.push(resolveResult.response);
+        } else {
+          resolvedMultiModalImages.push(img);
+        }
+      } else {
+        resolvedMultiModalImages.push(img);
+      }
+    }
+    resolvedMultiModalImage = resolvedMultiModalImages[0];
+  } else if (multiModalImage && isImageReference(multiModalImage)) {
+    // Back-compat: resolve single image if no array provided
     logDebug("Resolving image reference in multiModalImage");
     const resolveResult = await resolveImageReference(multiModalImage);
     if (resolveResult.status === "OK") {
@@ -251,6 +291,7 @@ export const processMessageForImageResolution = async (
 
   return {
     content: resolvedContent,
-    multiModalImage: resolvedMultiModalImage
+    multiModalImage: resolvedMultiModalImage,
+    multiModalImages: resolvedMultiModalImages
   };
 };

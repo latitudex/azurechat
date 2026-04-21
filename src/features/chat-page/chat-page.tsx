@@ -80,9 +80,11 @@ const ChatMessages = memo(function ChatMessages({ profilePicture }: { profilePic
             <Message key={m.id} from={role}>
               <div className="flex flex-col gap-0.5 w-full">
                 <MessageContent>
-                {m.multiModalImage && (
-                  <div className="mb-4">
-                    <ChatImageDisplay imageUrl={m.multiModalImage} className="max-w-[300px] rounded-lg" />
+                {(m.multiModalImages && m.multiModalImages.length > 0 ? m.multiModalImages : m.multiModalImage ? [m.multiModalImage] : []).length > 0 && (
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {(m.multiModalImages && m.multiModalImages.length > 0 ? m.multiModalImages : [m.multiModalImage!]).map((imgUrl, imgIdx) => (
+                      <ChatImageDisplay key={imgIdx} imageUrl={imgUrl} className="max-w-[300px] rounded-lg" />
+                    ))}
                   </div>
                 )}
                 {m.reasoningContent && m.role === 'assistant' && (
@@ -166,7 +168,7 @@ export const ChatPage = (props: ChatPageProps) => {
   // Separate subscriptions: messages handled in ChatMessages; here only input & control state
   const { input, chatThreadId, selectedModel, reasoningEffort, phase, loading, messages, attachedFiles } = useChat();
   const { uploadButtonLabel } = useFileStore();
-  const { base64Image, previewImage } = useInputImage();
+  const { base64Images, previewImages } = useInputImage();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Ensure we always have a valid model selected
@@ -197,7 +199,7 @@ export const ChatPage = (props: ChatPageProps) => {
 
   const attachImageFromFile = async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
-    InputImageStore.UpdateBase64Image(dataUrl);
+    InputImageStore.AddImage(dataUrl);
   };
 
   const uploadFile = async (file: File) => {
@@ -237,8 +239,6 @@ export const ChatPage = (props: ChatPageProps) => {
 
     if (files.length === 0) return;
 
-    const image = files.find((f) => f.type?.startsWith('image/'));
-
     // Some apps (e.g. PowerPoint) include both text and an image snapshot.
     // If the clipboard has meaningful text, keep the text paste behavior and ignore the image.
     if (hasMeaningfulText) {
@@ -248,9 +248,12 @@ export const ChatPage = (props: ChatPageProps) => {
     // Prevent the browser from trying to insert the image/file contents
     e.preventDefault();
 
-    // Prefer an image if present; otherwise upload the first file
-    if (image) {
-      await attachImageFromFile(image);
+    // Prefer images if present; otherwise upload the first file
+    const images = files.filter((f) => f.type?.startsWith('image/'));
+    if (images.length > 0) {
+      for (const img of images) {
+        await attachImageFromFile(img);
+      }
       return;
     }
 
@@ -275,9 +278,11 @@ export const ChatPage = (props: ChatPageProps) => {
     const files = Array.from(dt.files ?? []);
     if (files.length === 0) return;
 
-    const image = files.find(f => f.type?.startsWith('image/'));
-    if (image) {
-      await attachImageFromFile(image);
+    const images = files.filter(f => f.type?.startsWith('image/'));
+    if (images.length > 0) {
+      for (const img of images) {
+        await attachImageFromFile(img);
+      }
       return;
     }
 
@@ -304,19 +309,25 @@ export const ChatPage = (props: ChatPageProps) => {
           }}
         >
           {/* Attachments preview */}
-          {previewImage && (
-            <div className="relative overflow-hidden rounded-md w-[60px] h-[60px] m-2 border">
-              <Image src={previewImage} alt="Preview" fill={true} className="object-cover" />
-              <button
-                className="absolute right-1 top-1 bg-background/80 rounded-full p-1 hover:bg-background"
-                onClick={() => InputImageStore.Reset()}
-                type="button"
-              >
-                <X size={12} />
-              </button>
+          {previewImages.length > 0 && (
+            <div className="flex flex-wrap gap-2 m-2">
+              {previewImages.map((img, idx) => (
+                <div key={idx} className="relative overflow-hidden rounded-md w-[60px] h-[60px] border">
+                  <Image src={img} alt={`Preview ${idx + 1}`} fill={true} className="object-cover" />
+                  <button
+                    className="absolute right-1 top-1 bg-background/80 rounded-full p-1 hover:bg-background"
+                    onClick={() => InputImageStore.RemoveImage(idx)}
+                    type="button"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
-          <input type="hidden" name="image-base64" value={base64Image} />
+          {base64Images.map((img, idx) => (
+            <input key={idx} type="hidden" name="image-base64" value={img} />
+          ))}
           
           {/* Attached Files (Code Interpreter files) */}
           {attachedFiles.filter(f => f.type === "code-interpreter").length > 0 && (

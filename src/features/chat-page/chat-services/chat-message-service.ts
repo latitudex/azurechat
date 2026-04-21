@@ -121,6 +121,7 @@ export const CreateChatMessage = async ({
   role,
   chatThreadId,
   multiModalImage,
+  multiModalImages,
   reasoningContent,
   reasoningState
 }: {
@@ -129,6 +130,7 @@ export const CreateChatMessage = async ({
   content: string;
   chatThreadId: string;
   multiModalImage?: string;
+  multiModalImages?: string[];
   reasoningContent?: string;
   reasoningState?: any;
 }): Promise<ServerActionResponse<ChatMessageModel>> => {
@@ -138,7 +140,8 @@ export const CreateChatMessage = async ({
   const processedMessage = await processMessageForImagePersistence(
     chatThreadId,
     content,
-    multiModalImage
+    multiModalImage,
+    multiModalImages
   );
 
   const modelToSave: ChatMessageModel = {
@@ -152,6 +155,7 @@ export const CreateChatMessage = async ({
     threadId: chatThreadId,
     userId: userId,
     multiModalImage: processedMessage.multiModalImage,
+    multiModalImages: processedMessage.multiModalImages,
     reasoningContent: reasoningContent,
     reasoningState: reasoningState,
   };
@@ -166,7 +170,8 @@ export const UpsertChatMessage = async (
     const processedMessage = await processMessageForImagePersistence(
       chatModel.threadId,
       chatModel.content,
-      chatModel.multiModalImage
+      chatModel.multiModalImage,
+      chatModel.multiModalImages
     );
 
     const modelToSave: ChatMessageModel = {
@@ -177,6 +182,7 @@ export const UpsertChatMessage = async (
       isDeleted: false,
       content: processedMessage.content,
       multiModalImage: processedMessage.multiModalImage,
+      multiModalImages: processedMessage.multiModalImages,
     };
 
     logDebug("Upserting chat message", {
