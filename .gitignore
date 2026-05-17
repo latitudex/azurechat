@@ -19,6 +19,14 @@
 .DS_Store
 *.pem
 
+# playwright e2e artifacts
+src/test-results/
+src/playwright-report/
+src/e2e/.auth/
+src/e2e/.dev-server.pid
+# global-setup.ts temporarily renames the (stale) root lockfile during e2e
+package-lock.json.e2e-stash
+
 # debug
 npm-debug.log*
 yarn-debug.log*
