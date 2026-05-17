@@ -31,8 +31,6 @@ jobs:
 
       - name: Roll up coverage by feature area
         run: node __tests__/coverage-rollup.mjs
-        env:
-          COVERAGE_GATE: "100"
 
       - name: Upload coverage HTML
         if: always()

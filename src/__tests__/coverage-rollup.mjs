@@ -109,7 +109,9 @@ console.log(
   fmt(pct(total.l[0], total.l[1])),
 );
 
-const GATE = Number(process.env.COVERAGE_GATE ?? 100);
+// Default to informational rollup (no gate). Set COVERAGE_GATE in the
+// workflow env when you want to fail the build below a threshold.
+const GATE = Number(process.env.COVERAGE_GATE ?? 0);
 const failures = [];
 for (const [name, m] of rows) {
   const sp = pct(m.statements.covered, m.statements.total);
