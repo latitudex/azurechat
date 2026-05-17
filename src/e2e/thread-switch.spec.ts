@@ -24,11 +24,15 @@ test.describe("thread-switch", () => {
     await expect(page.getByRole("button", { name: /stop/i })).toBeHidden({ timeout: 15_000 });
 
     // Thread B — second New Chat. The sidebar is shared layout, so the button
-    // is still in the DOM on /chat/<A>.
-    await page.getByRole("button", { name: /new chat/i }).first().click();
-    await page.waitForURL((url) => /\/chat\/[^/]+$/.test(url.toString()) && !url.toString().endsWith(threadAId), {
-      timeout: 30_000,
-    });
+    // is still in the DOM on /chat/<A>. The form action CreateChatAndRedirect
+    // is wired through a server action; on slow CI the click can land before
+    // hydration completes, so we observe the URL via polling.
+    const newChatButton = page.getByRole("button", { name: /new chat/i }).first();
+    await expect(newChatButton).toBeEnabled({ timeout: 10_000 });
+    await newChatButton.click();
+    await expect
+      .poll(() => page.url(), { timeout: 45_000, intervals: [200, 400, 800, 1000] })
+      .toMatch(new RegExp(`/chat/(?!${threadAId})[^/]+$`));
     await expect(textarea).toBeVisible({ timeout: 30_000 });
     await textarea.fill("beta-marker-from-thread-B");
     await page.keyboard.press("Enter");
