@@ -31,13 +31,27 @@ import { ResponseType } from "@microsoft/microsoft-graph-client";
 import { ChunkDocumentWithOverlap } from "@/features/chat-page/chat-services/chat-document-service";
 import { SupportedFileExtensionsTextFiles } from "@/features/chat-page/chat-services/models";
 
-export async function DocumentDetails(documents: SharePointFile[]): Promise<
+export interface DocumentDetailsOptions {
+  maxSize?: number;
+  maxCount?: number;
+}
+
+export async function DocumentDetails(
+  documents: SharePointFile[],
+  options?: DocumentDetailsOptions
+): Promise<
   ServerActionResponse<{
     successful: DocumentMetadata[];
     sizeToBig: DocumentMetadata[];
     unsuccessful: { documentId: string }[];
   }>
 > {
+  const maxCount =
+    options?.maxCount ?? Number(process.env.MAX_PERSONA_DOCUMENT_LIMIT);
+  const maxSize =
+    options?.maxSize ??
+    (Number(process.env.MAX_PERSONA_DOCUMENT_SIZE) || 10485760);
+
   try {
     if (documents.length === 0) {
       return {
@@ -50,12 +64,12 @@ export async function DocumentDetails(documents: SharePointFile[]): Promise<
       };
     }
 
-    if (documents.length > Number(process.env.MAX_PERSONA_DOCUMENT_LIMIT)) {
+    if (documents.length > maxCount) {
       return {
         status: "ERROR",
         errors: [
           {
-            message: `Document IDs limit exceeded. Maximum is ${process.env.MAX_PERSONA_DOCUMENT_LIMIT}.`,
+            message: `Document IDs limit exceeded. Maximum is ${maxCount}.`,
           },
         ],
       };
@@ -89,10 +103,7 @@ export async function DocumentDetails(documents: SharePointFile[]): Promise<
         // Get the original document to preserve its id
         const originalDoc = documentIdMap.get(document.id);
 
-        if (
-          document.size >
-          (Number(process.env.MAX_PERSONA_DOCUMENT_SIZE) || 10485760)
-        ) {
+        if (document.size > maxSize) {
           sizeToBig.push({
             id: originalDoc?.id, // Preserve the PersonaDocument id
             documentId: document.id,

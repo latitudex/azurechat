@@ -21,10 +21,17 @@ interface Props {
   initialCIDocumentIds: readonly string[];
 }
 
+const CI_MAX_SIZE_BYTES =
+  Number(process.env.NEXT_PUBLIC_MAX_PERSONA_CI_DOCUMENT_SIZE) || 536870912;
+const CI_MAX_COUNT =
+  Number(process.env.NEXT_PUBLIC_MAX_PERSONA_CI_DOCUMENT_LIMIT) || 5;
+const CI_MAX_SIZE_MB = Math.round(CI_MAX_SIZE_BYTES / (1024 * 1024));
+
 export const CodeInterpreterDocuments: FC<Props> = ({ initialCIDocumentIds }) => {
   const { data: session } = useSession();
   const [pickedFiles, setPickedFiles] = useState<DocumentMetadata[]>([]);
   const [noAccessDocuments, setNoAccessDocuments] = useState<string[]>([]);
+  const [documentsToBig, setDocumentsToBig] = useState<DocumentMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -78,11 +85,36 @@ export const CodeInterpreterDocuments: FC<Props> = ({ initialCIDocumentIds }) =>
     }
 
     try {
-      const result = await DocumentDetails(files);
+      const result = await DocumentDetails(files, {
+        maxSize: CI_MAX_SIZE_BYTES,
+        maxCount: CI_MAX_COUNT,
+      });
 
       if (result.status === "OK") {
-        const { successful, unsuccessful } = result.response;
-        setPickedFiles(successful);
+        const { successful, unsuccessful, sizeToBig } = result.response;
+
+        setPickedFiles((current) => {
+          const byDocId = new Map(current.map((d) => [d.documentId, d]));
+          for (const file of successful) {
+            byDocId.set(file.documentId, file);
+          }
+          return Array.from(byDocId.values());
+        });
+
+        if (sizeToBig.length > 0) {
+          setDocumentsToBig((prev) => {
+            const byDocId = new Map(prev.map((d) => [d.documentId, d]));
+            for (const file of sizeToBig) {
+              byDocId.set(file.documentId, file);
+            }
+            return Array.from(byDocId.values());
+          });
+          displayToastError(
+            sizeToBig.length === 1
+              ? `"${sizeToBig[0].name}" exceeds the ${CI_MAX_SIZE_MB} MB limit for Code Interpreter files.`
+              : `${sizeToBig.length} files exceed the ${CI_MAX_SIZE_MB} MB limit for Code Interpreter files.`
+          );
+        }
 
         if (unsuccessful.length > 0) {
           setNoAccessDocuments((prev) => [
@@ -104,7 +136,12 @@ export const CodeInterpreterDocuments: FC<Props> = ({ initialCIDocumentIds }) =>
   const handleFilesSelected = async (
     selectedFiles: SharePointFile[]
   ): Promise<void> => {
-    await fetchMetadataForDocuments(selectedFiles);
+    setIsLoading(true);
+    try {
+      await fetchMetadataForDocuments(selectedFiles);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const displayToastError = (message: string) => {
@@ -117,6 +154,12 @@ export const CodeInterpreterDocuments: FC<Props> = ({ initialCIDocumentIds }) =>
 
   const handleRemove = (documentId: string): void => {
     setPickedFiles((current) =>
+      current.filter((f) => f.documentId !== documentId)
+    );
+  };
+
+  const handleRemoveToBig = (documentId: string): void => {
+    setDocumentsToBig((current) =>
       current.filter((f) => f.documentId !== documentId)
     );
   };
@@ -163,6 +206,17 @@ export const CodeInterpreterDocuments: FC<Props> = ({ initialCIDocumentIds }) =>
             tooltipContent="Your agent chat experience may suffer from the lack of documents."
           />
         )}
+
+        {documentsToBig.map((document) => (
+          <ErrorDocumentItem
+            key={document.documentId}
+            title={`"${document.name}" exceeds the ${CI_MAX_SIZE_MB} MB Code Interpreter limit`}
+            description="This file is too large to be used with Code Interpreter."
+            tooltipContent="Choose a smaller file or split it into smaller parts."
+            actionIcon={<Trash size={15} className="text-red-500" />}
+            action={() => handleRemoveToBig(document.documentId)}
+          />
+        ))}
 
         {isLoading ? (
           <div className="p-2 flex items-center justify-center w-full text-muted-foreground">
