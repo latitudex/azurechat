@@ -101,10 +101,16 @@ describe("sandbox-url-transform", () => {
         output: { outputs: [{ type: "image", url: STORED, filename: "red.png" }] },
       },
       { type: "text-delta", id: "1", text: `![](${SANDBOX})` },
+      { type: "text-end", id: "1" },
     ]);
-    const text = out.find((c) => c.type === "text-delta");
-    expect(text.text).toContain(SANDBOX);
-    expect(text.text).not.toContain(STORED);
+    // Unknown filename → text-delta holds the sandbox URL back, text-end
+    // flushes it as a separate delta unchanged. Reassemble both halves.
+    const reassembled = out
+      .filter((c) => c.type === "text-delta")
+      .map((c) => c.text)
+      .join("");
+    expect(reassembled).toContain(SANDBOX);
+    expect(reassembled).not.toContain(STORED);
   });
 
   it("does not register a tool output whose URL is itself a sandbox path", async () => {
@@ -115,8 +121,12 @@ describe("sandbox-url-transform", () => {
         output: { outputs: [{ type: "image", url: SANDBOX, filename: "red.png" }] },
       },
       { type: "text-delta", id: "1", text: `![](${SANDBOX})` },
+      { type: "text-end", id: "1" },
     ]);
-    const text = out.find((c) => c.type === "text-delta");
-    expect(text.text).toContain(SANDBOX);
+    const reassembled = out
+      .filter((c) => c.type === "text-delta")
+      .map((c) => c.text)
+      .join("");
+    expect(reassembled).toContain(SANDBOX);
   });
 });

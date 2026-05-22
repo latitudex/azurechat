@@ -263,15 +263,18 @@ export async function POST(req: Request) {
     tools: allTools,
     stopWhen: stepCountIs(8),
     abortSignal: abortController.signal,
-    experimental_transform: [
-      // Order matters: both image-bytes rewriters mutate `output.result` /
-      // `outputs[].url` BEFORE the sandbox URL rewriter, which then sees
-      // already-resolved URLs (or blob refs) when harvesting the filename
-      // map for text-delta rewriting.
-      createImageGenerationStreamRewriter(ctx.thread.id),
-      createCodeInterpreterStreamRewriter(ctx.thread.id),
-      createSandboxUrlTransform(),
-    ],
+    experimental_transform: (() => {
+      // Shared map populated by the code-interpreter rewriter when it
+      // persists a data: URL → blob ref; the sandbox text-delta transform
+      // consumes it to substitute matching data: URLs the model echoes
+      // in its prose.
+      const dataUrlToBlobRef = new Map<string, string>();
+      return [
+        createImageGenerationStreamRewriter(ctx.thread.id),
+        createCodeInterpreterStreamRewriter(ctx.thread.id, dataUrlToBlobRef),
+        createSandboxUrlTransform(ctx.thread.id, dataUrlToBlobRef),
+      ];
+    })(),
     providerOptions: resolved.providerOptions,
     onError: ({ error }) => {
       // `Error` objects have non-enumerable `.message` and `.stack`, so

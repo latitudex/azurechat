@@ -37,6 +37,15 @@ import { logError, logInfo } from "@/features/common/services/logger";
  */
 export function createCodeInterpreterStreamRewriter<TOOLS extends ToolSet>(
   threadId: string,
+  /**
+   * Caller-supplied map populated as data: URLs are persisted. The sandbox
+   * text-delta transform reads from it to substitute data: URLs the model
+   * echoes in its prose (e.g. `[Download](data:image/png;base64,…)`) with
+   * the same blob ref this rewriter stored. Sharing across the two
+   * transforms is the only way text-delta substitution can find the
+   * already-persisted bytes without re-uploading.
+   */
+  dataUrlToBlobRef?: Map<string, string>,
 ) {
   return (): TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>> => {
     const seenToolCallIds = new Set<string>();
@@ -98,6 +107,9 @@ export function createCodeInterpreterStreamRewriter<TOOLS extends ToolSet>(
               }
               const blobRef = persisted.response;
               injectedRefs.push(blobRef);
+              // Remember the mapping so the sandbox text-delta transform
+              // can substitute matching data: URLs in the model's prose.
+              dataUrlToBlobRef?.set(item.url, blobRef);
               return { ...item, url: blobRef };
             } catch (err) {
               logError("code-interp rewriter: unexpected failure", {
@@ -129,19 +141,11 @@ export function createCodeInterpreterStreamRewriter<TOOLS extends ToolSet>(
           output: { ...(typed.output as object), outputs: rewrittenOutputs },
         } as TextStreamPart<TOOLS>);
 
-        // Inject markdown image(s) into the assistant text stream so each
-        // generated image renders inline. text-start / text-end bookends
-        // required by the AI SDK around any text-delta.
-        for (const blobRef of injectedRefs) {
-          const id = `code-interp-${typed.toolCallId ?? Date.now()}-${injectedRefs.indexOf(blobRef)}`;
-          controller.enqueue({ type: "text-start", id } as TextStreamPart<TOOLS>);
-          controller.enqueue({
-            type: "text-delta",
-            id,
-            text: `\n\n![Generated image](${blobRef})\n\n`,
-          } as TextStreamPart<TOOLS>);
-          controller.enqueue({ type: "text-end", id } as TextStreamPart<TOOLS>);
-        }
+        // No markdown injection here — the model's own
+        // `[Download](sandbox:/mnt/data/<file>)` link gets rewritten by
+        // sandbox-url-transform once it ingests the matching
+        // container_file_citation source chunk. Injecting our own
+        // markdown alongside would render the same image twice.
       },
     });
   };
