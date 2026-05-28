@@ -286,6 +286,8 @@ export const ChatAPIResponse = async (props: UserPrompt, signal: AbortSignal) =>
     store: false,
     // Pin requests for the same thread to the same cache partition.
     prompt_cache_key: currentChatThread.id,
+    // Retain prompt cache entries for 24h (Azure OpenAI).
+    prompt_cache_retention: "24h",
     tools: [
       ...sortedTools,
       ...(props.imageGenerationEnabled ? [{ type: "image_generation" }] : []),

@@ -391,6 +391,8 @@ async function callSubAgent(
       model: subAgentModelConfig.deploymentName,
       stream: false,
       store: false,
+      // Retain prompt cache entries for 24h (Azure OpenAI).
+      prompt_cache_retention: "24h",
       ...(builtInTools.length > 0 && {
         tools: builtInTools,
         tool_choice: "auto",
