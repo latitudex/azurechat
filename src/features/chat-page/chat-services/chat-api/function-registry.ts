@@ -538,7 +538,17 @@ async function searchSubAgent(
 //      model can call this tool on demand whenever it needs the current
 //      datetime. Name and description are intentionally tiny to save tokens.
 async function getCurrentTime() {
-  return { datetime: new Date().toISOString() };
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const offsetMin = -now.getTimezoneOffset(); // positive east of UTC
+  const sign = offsetMin >= 0 ? "+" : "-";
+  const absMin = Math.abs(offsetMin);
+  const offset = `${sign}${pad(Math.floor(absMin / 60))}:${pad(absMin % 60)}`;
+  const datetime =
+    `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` +
+    `T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` +
+    offset;
+  return { datetime };
 }
 
 // Register built-in functions (will be called when needed)

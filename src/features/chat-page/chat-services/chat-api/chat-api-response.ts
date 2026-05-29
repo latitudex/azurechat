@@ -153,6 +153,10 @@ export const ChatAPIResponse = async (props: UserPrompt, signal: AbortSignal) =>
   const defaultTool = await getToolByName("time");
   if (defaultTool) {
     tools.push(defaultTool);
+  } else {
+    // Should never happen — `time` is statically defined in the registry —
+    // but log loudly if it does so the cache-stability regression is visible.
+    logError("Default 'time' tool missing from registry; tools-array stability degraded");
   }
   // Add search_documents tool if any documents are available (chat or persona)
   if (hasAnyDocuments) {
