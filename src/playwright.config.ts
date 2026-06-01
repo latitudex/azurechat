@@ -53,6 +53,10 @@ export default defineConfig({
       NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? "test-nextauth-secret-do-not-use-in-prod",
       NEXTAUTH_URL: baseURL,
       AZURECHAT_TEST_BACKEND: "memory",
+      // Opt in to fakes even though NODE_ENV=production (E2E runs against
+      // the production build; the security guard in instrumentation.ts
+      // refuses otherwise).
+      AZURECHAT_E2E_ALLOW_FAKES: "1",
       AZURE_COSMOSDB_URI: "https://cosmos.test.local",
       AZURE_COSMOSDB_KEY: "test-key",
       AZURE_COSMOSDB_DB_NAME: "chat",

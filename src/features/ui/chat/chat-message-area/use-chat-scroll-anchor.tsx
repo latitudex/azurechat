@@ -1,50 +1,49 @@
-import { chatStore, useChat } from "@/features/chat-page/chat-store";
-import { RefObject, useEffect } from "react";
+import { RefObject, useEffect, useRef } from "react";
 
+/**
+ * Auto-scrolls the scroll container to the bottom as new content arrives,
+ * but stops doing so if the user scrolls up — the "should I keep pinning
+ * to the bottom?" decision lives here as local state because the answer
+ * doesn't need to be shared across components.
+ */
 export const useChatScrollAnchor = (props: {
   ref: RefObject<HTMLDivElement>;
 }) => {
   const { ref } = props;
+  const autoScrollRef = useRef(true);
 
-  const { autoScroll } = useChat();
-
-  // This effect handles the user's scroll event
+  // Stop auto-scrolling once the user scrolls up away from the bottom;
+  // resume only when they scroll back down to (near) the end.
   useEffect(() => {
     const handleUserScroll = () => {
-      if (ref.current) {
-        const userScrolledUp =
-          ref.current.scrollTop + ref.current.clientHeight <
-          ref.current.scrollHeight;
-
-        chatStore.updateAutoScroll(!userScrolledUp);
-      }
+      if (!ref.current) return;
+      const atBottom =
+        ref.current.scrollTop + ref.current.clientHeight >=
+        ref.current.scrollHeight - 4;
+      autoScrollRef.current = atBottom;
     };
 
     ref.current?.addEventListener("scroll", handleUserScroll);
-
-    // Cleanup: remove the event listener when the component unmounts or the dependencies change
     return () => {
       ref.current?.removeEventListener("scroll", handleUserScroll);
     };
   }, [ref]);
 
-  // This effect handles the automatic scroll to bottom
+  // Pin to bottom whenever the DOM grows, but only while autoScroll is on.
   useEffect(() => {
     const handleAutoScroll = () => {
-      if (ref.current && autoScroll) {
+      if (ref.current && autoScrollRef.current) {
         ref.current.scrollTop = ref.current.scrollHeight;
       }
     };
 
     const observer = new MutationObserver(handleAutoScroll);
-
     if (ref.current) {
       observer.observe(ref.current, { childList: true, subtree: true });
     }
 
-    // Cleanup: disconnect the observer when the component unmounts or the dependencies change
     return () => {
       observer.disconnect();
     };
-  }, [ref, autoScroll]);
+  }, [ref]);
 };

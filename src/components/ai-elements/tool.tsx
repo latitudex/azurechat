@@ -18,6 +18,22 @@ import {
 } from 'lucide-react';
 import type { ComponentProps, ReactNode } from 'react';
 import { CodeBlock } from './code-block';
+import { Shimmer } from './shimmer';
+
+/**
+ * Turns a raw AI SDK part type (`tool-code_interpreter`, `dynamic-tool`)
+ * into a human label ("Code interpreter"). Strips the `tool-` discriminant
+ * prefix and the snake/kebab separators the model never meant the user to see.
+ */
+const formatToolName = (type: string): string => {
+  const name = type.replace(/^tool-/, '').replace(/[_-]+/g, ' ').trim();
+  if (!name) return 'Tool';
+  return name.charAt(0).toUpperCase() + name.slice(1);
+};
+
+/** A tool is still working until it has produced output (or errored). */
+const isRunningState = (state: ToolUIPart['state']): boolean =>
+  state === 'input-streaming' || state === 'input-available';
 
 export type ToolProps = ComponentProps<typeof Collapsible>;
 
@@ -35,19 +51,25 @@ export type ToolHeaderProps = {
 };
 
 const getStatusBadge = (status: ToolUIPart['state']) => {
-  const labels = {
+  const labels: Record<ToolUIPart['state'], string> = {
     'input-streaming': 'Pending',
     'input-available': 'Running',
+    'approval-requested': 'Awaiting approval',
+    'approval-responded': 'Approval responded',
     'output-available': 'Completed',
     'output-error': 'Error',
-  } as const;
+    'output-denied': 'Denied',
+  };
 
-  const icons = {
+  const icons: Record<ToolUIPart['state'], ReactNode> = {
     'input-streaming': <CircleIcon className="size-4" />,
     'input-available': <ClockIcon className="size-4 animate-pulse" />,
+    'approval-requested': <ClockIcon className="size-4 animate-pulse" />,
+    'approval-responded': <ClockIcon className="size-4" />,
     'output-available': <CheckCircleIcon className="size-4 text-green-600" />,
     'output-error': <XCircleIcon className="size-4 text-red-600" />,
-  } as const;
+    'output-denied': <XCircleIcon className="size-4 text-red-600" />,
+  };
 
   return (
     <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
@@ -72,7 +94,11 @@ export const ToolHeader = ({
   >
     <div className="flex items-center gap-2">
       <WrenchIcon className="size-4 text-muted-foreground" />
-      <span className="font-medium text-sm">{type}</span>
+      {isRunningState(state) ? (
+        <Shimmer className="font-medium text-sm">{formatToolName(type)}</Shimmer>
+      ) : (
+        <span className="font-medium text-sm">{formatToolName(type)}</span>
+      )}
       {getStatusBadge(state)}
     </div>
     <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />

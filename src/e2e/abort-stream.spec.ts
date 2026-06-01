@@ -1,17 +1,21 @@
 import { test, expect } from "@playwright/test";
+import { scriptText } from "./_helpers/script-fake";
 
 test.describe("abort-stream", () => {
+  // Bump from the default 30s to 60s — cold-start first-route compile on
+  // `next start` can push request latency past 30s on macOS arm64 when
+  // this spec hits the chat composer before other chat-using specs have
+  // warmed the bundle. Pass-on-retry in CI confirms it's a cold-start
+  // tail, not a real correctness issue.
+  test.setTimeout(60_000);
+
   test("/chat/temporary streaming response can be stopped via the stop button", async ({ page }) => {
-    await page.route("**/api/chat", async (route) => {
-      await route.fulfill({
-        status: 200,
-        headers: { "content-type": "text/event-stream", "cache-control": "no-cache" },
-        body: [
-          'data: {"choices":[{"delta":{"content":"Token one "}}]}\n\n',
-          'data: {"choices":[{"delta":{"content":"token two "}}]}\n\n',
-        ].join(""),
-      });
-    });
+    // Long-ish text so the stop affordance has time to appear and be clicked
+    // before the fake provider naturally finishes.
+    await scriptText(
+      page,
+      "Token one token two token three token four token five token six token seven token eight token nine token ten token eleven token twelve",
+    );
 
     await page.goto("/chat/temporary");
 

@@ -62,6 +62,18 @@ export const parseImageReference = (reference: string): { threadId: string; imag
 };
 
 /**
+ * Same-origin URL for a `blob://threadId/filename` reference. Pure string
+ * transform — synchronous — so message-adapter (which is sync) can resolve
+ * tool-result refs without a refactor. Returns null if the input isn't a
+ * recognised reference. Mirrors `GetImageUrlPath` in chat-image-service.
+ */
+export const resolveBlobReferenceToPath = (reference: string): string | null => {
+  const parsed = parseImageReference(reference);
+  if (!parsed) return null;
+  return `/api/images?t=${encodeURIComponent(parsed.threadId)}&img=${encodeURIComponent(parsed.fileName)}`;
+};
+
+/**
  * Converts an image URL back to a blob reference
  * Example: 'http://localhost:3000/api/images/?t=qWUM1VB&img=sihOs3OfKkuuJQNEwJzaKuMVfHyBNhLjuEwF.png'
  * Returns: 'blob://qWUM1VB/sihOs3OfKkuuJQNEwJzaKuMVfHyBNhLjuEwF.png'

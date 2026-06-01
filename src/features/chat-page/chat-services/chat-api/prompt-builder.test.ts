@@ -66,6 +66,7 @@ describe("buildSystemMessage", () => {
     expect(out.indexOf("STATIC")).toBeLessThan(out.indexOf("DOCHINT"));
     expect(out.indexOf("DOCHINT")).toBeLessThan(out.indexOf("PERSONA"));
   });
+
 });
 
 describe("sortFunctionTools", () => {

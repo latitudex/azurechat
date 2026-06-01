@@ -41,7 +41,10 @@ async function pasteImage(page: Page, filename: string) {
 }
 
 const previewImages = (page: Page) => page.locator('img[alt^="Preview"]');
-const hiddenImageInputs = (page: Page) => page.locator('input[type="hidden"][name="image-base64"]');
+// Hidden form inputs were a Valtio-era artifact. After the AI SDK v6
+// migration images flow via UIMessage.parts: [{type:"file"}] directly
+// to the transport — no hidden form fields are rendered. The preview
+// thumbnails remain the load-bearing visual contract.
 
 test.describe("multi-image input", () => {
   test("a single paste produces exactly one preview (no duplicate from clipboard.items + clipboard.files)", async ({ page }) => {
@@ -49,7 +52,6 @@ test.describe("multi-image input", () => {
 
     await pasteImage(page, "one.png");
     await expect(previewImages(page)).toHaveCount(1);
-    await expect(hiddenImageInputs(page)).toHaveCount(1);
   });
 
   test("two consecutive pastes accumulate to two previews (no overwrite)", async ({ page }) => {
@@ -60,7 +62,6 @@ test.describe("multi-image input", () => {
 
     await pasteImage(page, "second.png");
     await expect(previewImages(page)).toHaveCount(2);
-    await expect(hiddenImageInputs(page)).toHaveCount(2);
   });
 
   test("removing one image by index preserves the others", async ({ page }) => {
@@ -76,7 +77,6 @@ test.describe("multi-image input", () => {
     await firstPreviewWrapper.locator("button").click();
 
     await expect(previewImages(page)).toHaveCount(2);
-    await expect(hiddenImageInputs(page)).toHaveCount(2);
   });
 
   test("file-picker upload appends to existing pasted images instead of replacing them", async ({ page }) => {
@@ -95,7 +95,6 @@ test.describe("multi-image input", () => {
     });
 
     await expect(previewImages(page)).toHaveCount(2);
-    await expect(hiddenImageInputs(page)).toHaveCount(2);
   });
 
   test("submitting a pasted image renders it inside the resulting user message bubble", async ({ page }) => {

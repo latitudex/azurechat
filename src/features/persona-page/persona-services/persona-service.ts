@@ -536,7 +536,7 @@ const ValidateSchema = (model: PersonaModel): ServerActionResponse => {
   if (!validatedFields.success) {
     return {
       status: "ERROR",
-      errors: zodErrorsToServerActionErrors(validatedFields.error.errors),
+      errors: zodErrorsToServerActionErrors(validatedFields.error.issues),
     };
   }
 

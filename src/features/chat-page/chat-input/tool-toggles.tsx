@@ -8,11 +8,20 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/features/ui/tooltip";
-import { chatStore, useChat } from "../chat-store";
+import { useChatStore, useChatSession } from "../chat-store-context";
 import { cn } from "@/ui/lib";
 
 export const ToolToggles = () => {
-  const { webSearchEnabled, imageGenerationEnabled, companyContentEnabled, codeInterpreterEnabled, loading } = useChat();
+  const webSearchEnabled = useChatStore((s) => s.webSearchEnabled);
+  const imageGenerationEnabled = useChatStore((s) => s.imageGenerationEnabled);
+  const companyContentEnabled = useChatStore((s) => s.companyContentEnabled);
+  const codeInterpreterEnabled = useChatStore((s) => s.codeInterpreterEnabled);
+  const toggleWebSearch = useChatStore((s) => s.toggleWebSearch);
+  const toggleImageGeneration = useChatStore((s) => s.toggleImageGeneration);
+  const toggleCompanyContent = useChatStore((s) => s.toggleCompanyContent);
+  const toggleCodeInterpreter = useChatStore((s) => s.toggleCodeInterpreter);
+  const { status } = useChatSession();
+  const loading = status === "streaming" || status === "submitted" ? "loading" : "ready";
 
   return (
     <div className="flex gap-1 items-center">
@@ -24,7 +33,7 @@ export const ToolToggles = () => {
               variant={webSearchEnabled ? "default" : "ghost"}
               size={webSearchEnabled ? "sm" : "icon"}
               className={cn("h-8", webSearchEnabled ? "bg-primary text-primary-foreground gap-1 px-2" : "w-8")}
-              onClick={() => chatStore.toggleWebSearch(!webSearchEnabled)}
+              onClick={() => toggleWebSearch(!webSearchEnabled)}
               disabled={loading === "loading"}
             >
               <Globe className="h-4 w-4 shrink-0" />
@@ -54,7 +63,7 @@ export const ToolToggles = () => {
               variant={imageGenerationEnabled ? "default" : "ghost"}
               size={imageGenerationEnabled ? "sm" : "icon"}
               className={cn("h-8", imageGenerationEnabled ? "bg-primary text-primary-foreground gap-1 px-2" : "w-8")}
-              onClick={() => chatStore.toggleImageGeneration(!imageGenerationEnabled)}
+              onClick={() => toggleImageGeneration(!imageGenerationEnabled)}
               disabled={loading === "loading"}
             >
               <ImageIcon className="h-4 w-4 shrink-0" />
@@ -84,7 +93,7 @@ export const ToolToggles = () => {
               variant={companyContentEnabled ? "default" : "ghost"}
               size={companyContentEnabled ? "sm" : "icon"}
               className={cn("h-8", companyContentEnabled ? "bg-primary text-primary-foreground gap-1 px-2" : "w-8")}
-              onClick={() => chatStore.toggleCompanyContent(!companyContentEnabled)}
+              onClick={() => toggleCompanyContent(!companyContentEnabled)}
               disabled={loading === "loading"}
             >
               <Building2 className="h-4 w-4 shrink-0" />
@@ -114,7 +123,7 @@ export const ToolToggles = () => {
               variant={codeInterpreterEnabled ? "default" : "ghost"}
               size={codeInterpreterEnabled ? "sm" : "icon"}
               className={cn("h-8", codeInterpreterEnabled ? "bg-primary text-primary-foreground gap-1 px-2" : "w-8")}
-              onClick={() => chatStore.toggleCodeInterpreter(!codeInterpreterEnabled)}
+              onClick={() => toggleCodeInterpreter(!codeInterpreterEnabled)}
               disabled={loading === "loading"}
             >
               <Code2 className="h-4 w-4 shrink-0" />

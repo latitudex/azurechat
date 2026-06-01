@@ -3,9 +3,15 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ContextWindowIndicator } from "./context-window-indicator";
 
-// The component reads from the chat store via useChat
-vi.mock("../chat-store", () => ({
-  useChat: vi.fn(),
+// The component reads lastUsageData from the per-thread Zustand store via
+// useChatStore(selector). Mock the hook to feed each test scenario.
+const { mockSelectorState } = vi.hoisted(() => ({
+  mockSelectorState: { current: { lastUsageData: null as unknown } },
+}));
+
+vi.mock("../chat-store-context", () => ({
+  useChatStore: (selector: (s: unknown) => unknown) =>
+    selector(mockSelectorState.current as unknown),
 }));
 
 vi.mock("@/ui/dropdown-menu", async () => {
@@ -13,7 +19,11 @@ vi.mock("@/ui/dropdown-menu", async () => {
   return actual;
 });
 
-import { useChat } from "../chat-store";
+const useChat = {
+  mockReturnValue: (state: { lastUsageData: unknown }) => {
+    mockSelectorState.current = state;
+  },
+};
 
 const makeUsage = (overrides = {}) => ({
   contextWindowSize: 100000,
@@ -28,13 +38,13 @@ describe("chat-page.unit.components.002 — ContextWindowIndicator", () => {
   });
 
   it("renders nothing when no usage data", () => {
-    (useChat as any).mockReturnValue({ lastUsageData: null });
+    useChat.mockReturnValue({ lastUsageData: null });
     const { container } = render(<ContextWindowIndicator />);
     expect(container.firstChild).toBeNull();
   });
 
   it("renders nothing when contextWindowSize is 0", () => {
-    (useChat as any).mockReturnValue({
+    useChat.mockReturnValue({
       lastUsageData: makeUsage({ contextWindowSize: 0 }),
     });
     const { container } = render(<ContextWindowIndicator />);
@@ -42,7 +52,7 @@ describe("chat-page.unit.components.002 — ContextWindowIndicator", () => {
   });
 
   it("renders nothing when inputTokens is 0 (historical load)", () => {
-    (useChat as any).mockReturnValue({
+    useChat.mockReturnValue({
       lastUsageData: makeUsage({ inputTokens: 0, contextUsagePercent: 0 }),
     });
     const { container } = render(<ContextWindowIndicator />);
@@ -52,7 +62,7 @@ describe("chat-page.unit.components.002 — ContextWindowIndicator", () => {
   it("displays usage percentage formatted to 0 decimal in aria-label", () => {
     // 500000 / 1050000 ≈ 47.6%
     const percent = (500000 / 1050000) * 100; // ~47.619...
-    (useChat as any).mockReturnValue({
+    useChat.mockReturnValue({
       lastUsageData: makeUsage({ contextWindowSize: 1050000, inputTokens: 500000, contextUsagePercent: percent }),
     });
     render(<ContextWindowIndicator />);
@@ -64,7 +74,7 @@ describe("chat-page.unit.components.002 — ContextWindowIndicator", () => {
   });
 
   it("shows the percentage label in the trigger button", () => {
-    (useChat as any).mockReturnValue({
+    useChat.mockReturnValue({
       lastUsageData: makeUsage({ contextUsagePercent: 25 }),
     });
     render(<ContextWindowIndicator />);
@@ -74,7 +84,7 @@ describe("chat-page.unit.components.002 — ContextWindowIndicator", () => {
 
   // --- Three color-threshold branches ---
   it("applies text-red-500 class when percent > 80", () => {
-    (useChat as any).mockReturnValue({
+    useChat.mockReturnValue({
       lastUsageData: makeUsage({ contextUsagePercent: 85 }),
     });
     render(<ContextWindowIndicator />);
@@ -83,7 +93,7 @@ describe("chat-page.unit.components.002 — ContextWindowIndicator", () => {
   });
 
   it("applies text-yellow-500 class when percent > 50 and <= 80", () => {
-    (useChat as any).mockReturnValue({
+    useChat.mockReturnValue({
       lastUsageData: makeUsage({ contextUsagePercent: 65 }),
     });
     render(<ContextWindowIndicator />);
@@ -92,7 +102,7 @@ describe("chat-page.unit.components.002 — ContextWindowIndicator", () => {
   });
 
   it("applies text-muted-foreground class when percent <= 50", () => {
-    (useChat as any).mockReturnValue({
+    useChat.mockReturnValue({
       lastUsageData: makeUsage({ contextUsagePercent: 30 }),
     });
     render(<ContextWindowIndicator />);
@@ -102,7 +112,7 @@ describe("chat-page.unit.components.002 — ContextWindowIndicator", () => {
 
   // --- toFixed(1) in dropdown body ---
   it("shows percent.toFixed(1) in dropdown content after opening", async () => {
-    (useChat as any).mockReturnValue({
+    useChat.mockReturnValue({
       lastUsageData: makeUsage({ contextUsagePercent: 47.619 }),
     });
     render(<ContextWindowIndicator />);
@@ -112,7 +122,7 @@ describe("chat-page.unit.components.002 — ContextWindowIndicator", () => {
   });
 
   it("dropdown body formats token counts with k/M suffixes", async () => {
-    (useChat as any).mockReturnValue({
+    useChat.mockReturnValue({
       lastUsageData: makeUsage({ inputTokens: 15000, contextWindowSize: 128000, contextUsagePercent: 11.7 }),
     });
     render(<ContextWindowIndicator />);

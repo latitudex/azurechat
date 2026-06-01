@@ -7,10 +7,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
-import { useChat } from "../chat-store";
+import { useChatStore } from "../chat-store-context";
 
 export const TokenUsageDisplay: FC = () => {
-  const { lastUsageData } = useChat();
+  const lastUsageData = useChatStore((s) => s.lastUsageData);
 
   if (!lastUsageData) return null;
 

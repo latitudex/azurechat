@@ -63,4 +63,5 @@ export const SERVICE_KEYS = {
   openaiReasoning: "openai-reasoning",
   openaiV1Reasoning: "openai-v1-reasoning",
   openaiV1Image: "openai-v1-image",
+  aiProvider: "ai-sdk-provider",
 } as const;

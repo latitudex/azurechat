@@ -9,7 +9,6 @@ import {
 } from "../ui/accordion";
 import { RecursiveUI } from "../ui/recursive-ui";
 import { CitationAction } from "./citation/citation-action";
-import { chatStore } from "./chat-store";
 import { ChatImageDisplay } from "./chat-image-display";
 
 interface MessageContentProps {

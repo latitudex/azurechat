@@ -21,6 +21,33 @@ const nextConfig = {
       bodySizeLimit: "10mb",
     },
     turbopackUseSystemTlsCerts: true,
+    // Disable the Next.js client-side router cache for dynamic routes.
+    // Default is 30s, which makes /chat/[id] show stale "no assistant" state
+    // for half a minute after the background generation persisted a message.
+    staleTimes: {
+      // Default is 30s; set 0 so /chat/[id] navigations always refetch the
+      // RSC payload and pick up assistant rows persisted in the background.
+      dynamic: 0,
+      static: 30,
+    },
+  },
+  async headers() {
+    return [
+      {
+        // Everything except /embed must never be framable. Negative lookahead
+        // excludes /embed, whose framing policy is set at RUNTIME in
+        // src/proxy.ts (so EMBED_ALLOWED_ANCESTORS can change without a
+        // rebuild — next.config headers() are baked at build time).
+        source: "/((?!embed).*)",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors 'self';",
+          },
+        ],
+      },
+    ];
   },
 };
 

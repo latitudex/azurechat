@@ -14,8 +14,8 @@ vi.mock("./start-new-persona-chat", () => ({
   StartNewPersonaChat: () => <div data-testid="start-chat" />,
 }));
 
-vi.mock("./copy-to-clipboard-button", () => ({
-  CopyToClipboardButton: () => <button aria-label="copy link" />,
+vi.mock("./copy-agent-links-menu", () => ({
+  CopyAgentLinksMenu: () => <button aria-label="Copy agent links" />,
 }));
 
 vi.mock("./persona-visibility-info", () => ({

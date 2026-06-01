@@ -6,10 +6,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
-import { useChat } from "../chat-store";
+import { useChatStore } from "../chat-store-context";
 
 export const ContextWindowIndicator: FC = () => {
-  const { lastUsageData } = useChat();
+  const lastUsageData = useChatStore((s) => s.lastUsageData);
 
   // Only show after a live request (not on historical load where inputTokens is 0)
   if (!lastUsageData || !lastUsageData.contextWindowSize || lastUsageData.inputTokens === 0) return null;

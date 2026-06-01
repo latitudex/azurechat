@@ -1,7 +1,7 @@
 import { PromptModel } from "@/features/prompt-page/models";
 import { FindAllPrompts } from "@/features/prompt-page/prompt-service";
 import { proxy, useSnapshot } from "valtio";
-import { chatStore } from "../../chat-store";
+import { getActiveChatStore } from "../../active-chat-store";
 
 class InputPromptState {
   public errors: string[] = [];
@@ -34,7 +34,7 @@ class InputPromptState {
   }
 
   public selectPrompt(prompt: PromptModel) {
-    chatStore.updateInput(prompt.description);
+    getActiveChatStore()?.getState().setInputText(prompt.description);
     this.isOpened = false;
     this.errors = [];
   }

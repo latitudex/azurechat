@@ -48,6 +48,22 @@ export const GetImageUrl = async (threadId: string, fileName: string): Promise<s
   return `${IMAGE_API_PATH}${params}`;
 };
 
+/**
+ * Same as GetImageUrl but returns a same-origin, leading-slash path
+ * (`/api/images?...`). Use this when the URL will be rendered to the
+ * browser (markdown links / <img src>) — Streamdown's link sanitizer
+ * blocks absolute URLs that match the page origin, so relative is the
+ * only form that round-trips through it. Use GetImageUrl when the URL
+ * is consumed by the LLM (vision input) and must be fetchable from a
+ * different host.
+ */
+export const GetImageUrlPath = async (
+  threadId: string,
+  fileName: string,
+): Promise<string> => {
+  return `/api/images?t=${encodeURIComponent(threadId)}&img=${encodeURIComponent(fileName)}`;
+};
+
 export const GetThreadAndImageFromUrl = async (
   urlString: string
 ): Promise<ServerActionResponse<{ threadId: string; imgName: string }>> => {

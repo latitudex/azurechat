@@ -1,14 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { scriptError } from "./_helpers/script-fake";
 
 test.describe("error-toast", () => {
-  test("/api/chat returning 500 surfaces a visible error region after sending a message", async ({ page }) => {
-    await page.route("**/api/chat", async (route) => {
-      await route.fulfill({
-        status: 500,
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ error: "Internal Server Error" }),
-      });
-    });
+  test("an LLM error surfaces a visible error region after sending a message", async ({ page }) => {
+    await scriptError(page, "Simulated upstream failure");
 
     await page.goto("/chat/temporary");
 
@@ -18,10 +13,13 @@ test.describe("error-toast", () => {
     await textarea.fill("trigger an error");
     await page.keyboard.press("Enter");
 
-    // Either the Radix toast viewport (role="status"/"alert") or a destructive-styled
-    // node should appear. Both selectors cover the variations used by the codebase.
+    // chat-page.tsx renders chat.error inline (architect2 SEV-1 B6).
+    // Either that destructive banner, the legacy Radix toast, or any role
+    // status/alert node must appear.
     const errorRegion = page
-      .locator('[data-variant="destructive"], [role="status"], [role="alert"]')
+      .locator(
+        '[data-variant="destructive"], [role="status"], [role="alert"], .bg-destructive\\/10',
+      )
       .filter({ hasText: /./ })
       .first();
     await expect(errorRegion).toBeVisible({ timeout: 15_000 });

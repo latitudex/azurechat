@@ -24,6 +24,19 @@ export interface ModelPricing {
   cachedInputPerMillion: number;
 }
 
+/**
+ * The upstream provider that serves this model. Switches the route's
+ * provider-seam to a different concrete implementation:
+ *
+ *   - "azure":     @ai-sdk/azure → OpenAI Responses API (default).
+ *   - "anthropic": @ai-sdk/anthropic (planned; provider-seam.ts throws
+ *                  a descriptive error until the branch is wired).
+ *
+ * Absence is treated as "azure" for backward compatibility with existing
+ * MODEL_CONFIGS entries.
+ */
+export type ModelProvider = "azure" | "anthropic";
+
 export interface ModelConfig {
   id: ChatModel;
   name: string;
@@ -34,6 +47,8 @@ export interface ModelConfig {
   supportsResponsesAPI: boolean;
   supportsImageGeneration?: boolean;
   supportsComputerUse?: boolean;
+  /** Optional override of the route's provider seam. Defaults to "azure". */
+  provider?: ModelProvider;
   deploymentName?: string;
   defaultReasoningEffort?: ReasoningEffort;
   pricing: ModelPricing;
@@ -188,9 +203,25 @@ export interface ChatMessageModel {
   multiModalImage?: string;
   multiModalImages?: string[];
   reasoningContent?: string;
+  /**
+   * Wall-clock the model spent reasoning this turn, in milliseconds. Measured
+   * server-side in the /api/chat onChunk timer and round-tripped via the
+   * message-adapter so the UI's "Thought for Ns" label survives a reload.
+   */
+  reasoningDurationMs?: number;
   toolCallHistory?: Array<{ name: string; arguments: string; result?: string; timestamp: Date }>;
   type: typeof MESSAGE_ATTRIBUTE;
   reasoningState?: any;
+  /**
+   * Stable identifier for the conversational turn this row belongs to.
+   * One turn = one user submission + the assistant message + any tool
+   * rows generated during it. Allows:
+   *   - atomic-turn persistence detection (partial turns are findable)
+   *   - turn-level cost rollup
+   * Optional for backward compatibility with rows written before this
+   * field existed; absence means "pre-turnId data".
+   */
+  turnId?: string;
 }
 
 export type ChatRole = "system" | "user" | "assistant" | "function" | "tool" | "reasoning";

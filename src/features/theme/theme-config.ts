@@ -4,7 +4,7 @@ export const CHAT_DEFAULT_PERSONA = AI_NAME + " default";
 
 export const CHAT_DEFAULT_SYSTEM_PROMPT = `You are a friendly ${AI_NAME} AI assistant.
 
-CRITICAL FORMATTING REQUIREMENT: You MUST ALWAYS format your entire response using proper Markdown syntax.`;
+FORMATTING: Format your text answers using proper Markdown syntax. This applies to prose only — it does not prevent you from calling tools, which you should still use whenever they fit the request.`;
 
 export const NEW_CHAT_NAME = "New chat";
 

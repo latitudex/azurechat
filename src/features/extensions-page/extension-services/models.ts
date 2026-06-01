@@ -34,7 +34,7 @@ export const EndpointTypeSchema = z.enum([
 ]);
 
 export const ExtensionFunctionSchema = z.object({
-  id: z.string({ required_error: "Function ID is required" }),
+  id: z.string({ error: "Function ID is required" }),
   functionName: z
     .string()
     .min(1, {

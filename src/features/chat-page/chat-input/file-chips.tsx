@@ -2,7 +2,7 @@
 
 import { X, FileSpreadsheet, FileText, Image as ImageIcon, File } from "lucide-react";
 import { Button } from "@/features/ui/button";
-import { useChat, chatStore } from "@/features/chat-page/chat-store";
+import { useChatStore } from "@/features/chat-page/chat-store-context";
 import { useInputImage, InputImageStore } from "@/features/ui/chat/chat-input-area/input-image-store";
 import { cn } from "@/ui/lib";
 import type { ChatDocumentModel } from "../chat-services/models";
@@ -45,8 +45,10 @@ const getFileTypeLabel = (fileName: string) => {
 };
 
 export const FileChips = ({ chatDocuments }: FileChipsProps) => {
-  const { attachedFiles, chatThreadId } = useChat();
-  const codeInterpreterFiles = attachedFiles.filter(f => f.type === "code-interpreter");
+  const attachedFiles = useChatStore((s) => s.attachedFiles);
+  const chatThreadId = useChatStore((s) => s.threadId);
+  const removeAttachedFile = useChatStore((s) => s.removeAttachedFile);
+  const codeInterpreterFiles = attachedFiles.filter((f) => f.type === "code-interpreter");
   const { previewImages } = useInputImage();
 
   const hasCodeInterpreterFiles = codeInterpreterFiles.length > 0;
@@ -66,7 +68,7 @@ export const FileChips = ({ chatDocuments }: FileChipsProps) => {
       }
 
       await RemoveAttachedFile(chatThreadId, fileId);
-      chatStore.removeAttachedFile(fileId);
+      removeAttachedFile(fileId);
     } catch (error) {
       showError(
         `Failed to remove Code Interpreter file: ${error instanceof Error ? error.message : String(error)}`

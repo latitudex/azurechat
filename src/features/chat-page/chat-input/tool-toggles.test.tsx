@@ -2,162 +2,127 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-// Use vi.hoisted to define mocks that can be referenced in vi.mock factory
+// Hoisted spies + a tiny state hook so the mock can re-render between cases.
 const {
   mockToggleWebSearch,
   mockToggleImageGeneration,
   mockToggleCompanyContent,
   mockToggleCodeInterpreter,
+  storeState,
+  sessionState,
 } = vi.hoisted(() => ({
   mockToggleWebSearch: vi.fn(),
   mockToggleImageGeneration: vi.fn(),
   mockToggleCompanyContent: vi.fn(),
   mockToggleCodeInterpreter: vi.fn(),
-}));
-
-vi.mock("../chat-store", () => ({
-  chatStore: {
-    toggleWebSearch: mockToggleWebSearch,
-    toggleImageGeneration: mockToggleImageGeneration,
-    toggleCompanyContent: mockToggleCompanyContent,
-    toggleCodeInterpreter: mockToggleCodeInterpreter,
-  },
-  useChat: vi.fn().mockReturnValue({
+  storeState: {
     webSearchEnabled: false,
     imageGenerationEnabled: false,
     companyContentEnabled: false,
     codeInterpreterEnabled: false,
-    loading: "idle",
-  }),
+  },
+  sessionState: { status: "ready" as "ready" | "streaming" | "submitted" },
+}));
+
+vi.mock("../chat-store-context", () => ({
+  useChatStore: (selector: (s: Record<string, unknown>) => unknown) =>
+    selector({
+      ...storeState,
+      toggleWebSearch: mockToggleWebSearch,
+      toggleImageGeneration: mockToggleImageGeneration,
+      toggleCompanyContent: mockToggleCompanyContent,
+      toggleCodeInterpreter: mockToggleCodeInterpreter,
+    }),
+  useChatSession: () => sessionState,
 }));
 
 vi.mock("@/ui/lib", () => ({
-  cn: (...args: any[]) => args.filter(Boolean).join(" "),
+  cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
 import { ToolToggles } from "./tool-toggles";
-import { useChat } from "../chat-store";
+
+function setStore(partial: Partial<typeof storeState>) {
+  Object.assign(storeState, {
+    webSearchEnabled: false,
+    imageGenerationEnabled: false,
+    companyContentEnabled: false,
+    codeInterpreterEnabled: false,
+    ...partial,
+  });
+}
+
+function setLoading(loading: boolean) {
+  sessionState.status = loading ? "streaming" : "ready";
+}
 
 describe("chat-page.unit.components.004 — ToolToggles", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (useChat as any).mockReturnValue({
-      webSearchEnabled: false,
-      imageGenerationEnabled: false,
-      companyContentEnabled: false,
-      codeInterpreterEnabled: false,
-      loading: "idle",
-    });
+    setStore({});
+    setLoading(false);
   });
 
   it("renders all four tool toggle buttons", () => {
     render(<ToolToggles />);
-    const buttons = screen.getAllByRole("button");
-    expect(buttons.length).toBeGreaterThanOrEqual(4);
+    expect(screen.getAllByRole("button")).toHaveLength(4);
   });
 
   it("clicking the web-search button calls toggleWebSearch(true)", async () => {
     render(<ToolToggles />);
-    const buttons = screen.getAllByRole("button");
-    // First button is web search
-    await userEvent.click(buttons[0]);
+    await userEvent.click(screen.getAllByRole("button")[0]);
     expect(mockToggleWebSearch).toHaveBeenCalledWith(true);
   });
 
   it("when webSearchEnabled=true, clicking the web-search button calls toggleWebSearch(false)", async () => {
-    (useChat as any).mockReturnValue({
-      webSearchEnabled: true,
-      imageGenerationEnabled: false,
-      companyContentEnabled: false,
-      codeInterpreterEnabled: false,
-      loading: "idle",
-    });
+    setStore({ webSearchEnabled: true });
     render(<ToolToggles />);
-    const buttons = screen.getAllByRole("button");
-    await userEvent.click(buttons[0]);
+    await userEvent.click(screen.getAllByRole("button")[0]);
     expect(mockToggleWebSearch).toHaveBeenCalledWith(false);
   });
 
-  it("buttons are disabled when loading==='loading'", () => {
-    (useChat as any).mockReturnValue({
-      webSearchEnabled: false,
-      imageGenerationEnabled: false,
-      companyContentEnabled: false,
-      codeInterpreterEnabled: false,
-      loading: "loading",
-    });
+  it("buttons are disabled when status indicates streaming", () => {
+    setLoading(true);
     render(<ToolToggles />);
-    const buttons = screen.getAllByRole("button");
-    buttons.forEach((btn) => expect(btn).toBeDisabled());
+    screen.getAllByRole("button").forEach((btn) => expect(btn).toBeDisabled());
   });
 
-  // --- true→false flips for the 3 untested toggles ---
-
-  it("when imageGenerationEnabled=true, clicking the image-generation button calls toggleImageGeneration(false)", async () => {
-    (useChat as any).mockReturnValue({
-      webSearchEnabled: false,
-      imageGenerationEnabled: true,
-      companyContentEnabled: false,
-      codeInterpreterEnabled: false,
-      loading: "idle",
-    });
+  it("clicking the image-generation button calls toggleImageGeneration(true)", async () => {
     render(<ToolToggles />);
-    // Second button is image generation (index 1)
-    const buttons = screen.getAllByRole("button");
-    await userEvent.click(buttons[1]);
-    expect(mockToggleImageGeneration).toHaveBeenCalledWith(false);
-  });
-
-  it("when companyContentEnabled=true, clicking the company-content button calls toggleCompanyContent(false)", async () => {
-    (useChat as any).mockReturnValue({
-      webSearchEnabled: false,
-      imageGenerationEnabled: false,
-      companyContentEnabled: true,
-      codeInterpreterEnabled: false,
-      loading: "idle",
-    });
-    render(<ToolToggles />);
-    const buttons = screen.getAllByRole("button");
-    await userEvent.click(buttons[2]);
-    expect(mockToggleCompanyContent).toHaveBeenCalledWith(false);
-  });
-
-  it("when codeInterpreterEnabled=true, clicking the code-interpreter button calls toggleCodeInterpreter(false)", async () => {
-    (useChat as any).mockReturnValue({
-      webSearchEnabled: false,
-      imageGenerationEnabled: false,
-      companyContentEnabled: false,
-      codeInterpreterEnabled: true,
-      loading: "idle",
-    });
-    render(<ToolToggles />);
-    const buttons = screen.getAllByRole("button");
-    await userEvent.click(buttons[3]);
-    expect(mockToggleCodeInterpreter).toHaveBeenCalledWith(false);
-  });
-
-  // --- Named-query replacements ---
-  it("clicking the image-generation button calls toggleImageGeneration(true) when disabled", async () => {
-    render(<ToolToggles />);
-    // Button order: web(0) image(1) company(2) code(3)
-    // Use tooltip text to find buttons by relationship
-    const allButtons = screen.getAllByRole("button");
-    expect(allButtons).toHaveLength(4);
-    await userEvent.click(allButtons[1]);
+    await userEvent.click(screen.getAllByRole("button")[1]);
     expect(mockToggleImageGeneration).toHaveBeenCalledWith(true);
   });
 
-  it("clicking the company-content button calls toggleCompanyContent(true) when disabled", async () => {
+  it("when imageGenerationEnabled=true, clicking the image-generation button calls toggleImageGeneration(false)", async () => {
+    setStore({ imageGenerationEnabled: true });
     render(<ToolToggles />);
-    const allButtons = screen.getAllByRole("button");
-    await userEvent.click(allButtons[2]);
+    await userEvent.click(screen.getAllByRole("button")[1]);
+    expect(mockToggleImageGeneration).toHaveBeenCalledWith(false);
+  });
+
+  it("clicking the company-content button calls toggleCompanyContent(true)", async () => {
+    render(<ToolToggles />);
+    await userEvent.click(screen.getAllByRole("button")[2]);
     expect(mockToggleCompanyContent).toHaveBeenCalledWith(true);
   });
 
-  it("clicking the code-interpreter button calls toggleCodeInterpreter(true) when disabled", async () => {
+  it("when companyContentEnabled=true, clicking the company-content button calls toggleCompanyContent(false)", async () => {
+    setStore({ companyContentEnabled: true });
     render(<ToolToggles />);
-    const allButtons = screen.getAllByRole("button");
-    await userEvent.click(allButtons[3]);
+    await userEvent.click(screen.getAllByRole("button")[2]);
+    expect(mockToggleCompanyContent).toHaveBeenCalledWith(false);
+  });
+
+  it("clicking the code-interpreter button calls toggleCodeInterpreter(true)", async () => {
+    render(<ToolToggles />);
+    await userEvent.click(screen.getAllByRole("button")[3]);
     expect(mockToggleCodeInterpreter).toHaveBeenCalledWith(true);
+  });
+
+  it("when codeInterpreterEnabled=true, clicking the code-interpreter button calls toggleCodeInterpreter(false)", async () => {
+    setStore({ codeInterpreterEnabled: true });
+    render(<ToolToggles />);
+    await userEvent.click(screen.getAllByRole("button")[3]);
+    expect(mockToggleCodeInterpreter).toHaveBeenCalledWith(false);
   });
 });

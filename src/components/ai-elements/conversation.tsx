@@ -13,7 +13,11 @@ export const Conversation = ({ className, ...props }: ConversationProps) => (
   <StickToBottom
     className={cn('relative flex-1 overflow-x-hidden overflow-y-auto', className)}
     initial="smooth"
-    resize="smooth"
+    // `resize="instant"` (not "smooth"): a smooth-scroll animation re-triggered
+    // by content that keeps resizing mid-animation feeds back on itself and
+    // trips "Maximum update depth" when large content (a generative-UI card)
+    // streams in. Instant resize-follow breaks that loop.
+    resize="instant"
     role="log"
     {...props}
   />

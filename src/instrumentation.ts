@@ -14,6 +14,12 @@ export async function register() {
   // import a service module. Production source files have no awareness of
   // this mode; the only switch is here.
   if (process.env.AZURECHAT_TEST_BACKEND === "memory") {
+    // Gate via the single shared helper; the variant throws when
+    // misconfigured in production so Next.js logs a clear failure.
+    const { assertE2eFakesAllowedOrRefuse } = await import(
+      "./features/common/services/e2e-fakes-gate"
+    );
+    assertE2eFakesAllowedOrRefuse();
     await import("./__tests__/e2e-fakes/register");
   }
 

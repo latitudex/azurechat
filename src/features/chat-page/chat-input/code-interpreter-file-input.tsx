@@ -3,7 +3,7 @@
 import { FileSpreadsheet, X, Upload, Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/features/ui/button";
-import { chatStore, useChat } from "@/features/chat-page/chat-store";
+import { useChatStore, useChatSession } from "@/features/chat-page/chat-store-context";
 import { showError, showSuccess } from "@/features/globals/global-message-store";
 import {
   Tooltip,
@@ -26,15 +26,21 @@ const CODE_INTERPRETER_SUPPORTED_EXTENSIONS = [
 ];
 
 export const CodeInterpreterFileInput = () => {
-  const { codeInterpreterEnabled, attachedFiles, loading, chatThreadId } = useChat();
-  const codeInterpreterFiles = attachedFiles.filter(f => f.type === "code-interpreter");
+  const codeInterpreterEnabled = useChatStore((s) => s.codeInterpreterEnabled);
+  const attachedFiles = useChatStore((s) => s.attachedFiles);
+  const chatThreadId = useChatStore((s) => s.threadId);
+  const toggleCodeInterpreter = useChatStore((s) => s.toggleCodeInterpreter);
+  const addAttachedFile = useChatStore((s) => s.addAttachedFile);
+  const removeAttachedFile = useChatStore((s) => s.removeAttachedFile);
+  const { status } = useChatSession();
+  const loading = status === "streaming" || status === "submitted";
+  const codeInterpreterFiles = attachedFiles.filter((f) => f.type === "code-interpreter");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleClick = () => {
     if (!codeInterpreterEnabled) {
-      // Enable code interpreter first
-      chatStore.toggleCodeInterpreter(true);
+      toggleCodeInterpreter(true);
     }
     fileInputRef.current?.click();
   };
@@ -48,7 +54,7 @@ export const CodeInterpreterFileInput = () => {
 
     // Auto-enable code interpreter when file is uploaded
     if (!codeInterpreterEnabled) {
-      chatStore.toggleCodeInterpreter(true);
+      toggleCodeInterpreter(true);
     }
 
     setUploading(true);
@@ -76,8 +82,8 @@ export const CodeInterpreterFileInput = () => {
         uploadedAt: new Date()
       };
       
-      chatStore.addAttachedFile(attachedFile);
-      
+      addAttachedFile(attachedFile);
+
       // Persist to database
       await AddAttachedFile(chatThreadId, attachedFile);
 
@@ -104,7 +110,7 @@ export const CodeInterpreterFileInput = () => {
       }
 
       await RemoveAttachedFile(chatThreadId, fileId);
-      chatStore.removeAttachedFile(fileId);
+      removeAttachedFile(fileId);
     } catch (error) {
       showError(`Failed to remove file: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -149,7 +155,7 @@ export const CodeInterpreterFileInput = () => {
                 codeInterpreterFiles.length > 0 && "text-primary"
               )}
               onClick={handleClick}
-              disabled={loading === "loading" || uploading}
+              disabled={loading || uploading}
             >
               {uploading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

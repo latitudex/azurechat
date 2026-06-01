@@ -28,6 +28,7 @@ import {
   OpenAIV1ReasoningInstance as createFakeV1Reasoning,
   OpenAIV1ImageInstance as createFakeV1Image,
 } from "./openai";
+import { createFakeAzureProvider } from "./azure-provider";
 
 register(SERVICE_KEYS.cosmos, createFakeCosmos);
 register(SERVICE_KEYS.openaiChat, createFakeChat);
@@ -38,5 +39,6 @@ register(SERVICE_KEYS.openaiVision, createFakeVision);
 register(SERVICE_KEYS.openaiReasoning, createFakeReasoning);
 register(SERVICE_KEYS.openaiV1Reasoning, createFakeV1Reasoning);
 register(SERVICE_KEYS.openaiV1Image, createFakeV1Image);
+register(SERVICE_KEYS.aiProvider, createFakeAzureProvider);
 
 console.log("[e2e-fakes] in-memory service bindings registered");

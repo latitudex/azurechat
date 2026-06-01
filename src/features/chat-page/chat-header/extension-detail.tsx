@@ -12,7 +12,12 @@ import {
 import { Switch } from "@/features/ui/switch";
 import { Globe, PocketKnife } from "lucide-react";
 import { FC } from "react";
-import { chatStore } from "../chat-store";
+import {
+  AddExtensionToChatThread,
+  RemoveExtensionFromChatThread,
+} from "../chat-services/chat-thread-service";
+import { showError } from "@/features/globals/global-message-store";
+import { RevalidateCache } from "@/features/common/navigation-helpers";
 import { personaStore } from "@/features/persona-page/persona-store";
 
 interface Props {
@@ -25,18 +30,17 @@ interface Props {
 
 export const ExtensionDetail: FC<Props> = (props) => {
   const toggleInstall = async (isChecked: boolean, extensionId: string) => {
-    if (isChecked) {
-      if (props.parent === "chat") {
-        await chatStore.AddExtensionToChatThread(extensionId);
-      } else {
-        personaStore.addExtension(extensionId);
-      }
-    } else {
-      if (props.parent === "chat") {
-        await chatStore.RemoveExtensionFromChatThread(extensionId);
-      } else {
-        personaStore.removeExtension(extensionId);
-      }
+    if (props.parent !== "chat") {
+      if (isChecked) personaStore.addExtension(extensionId);
+      else personaStore.removeExtension(extensionId);
+      return;
+    }
+    const response = isChecked
+      ? await AddExtensionToChatThread({ extensionId, chatThreadId: props.chatThreadId })
+      : await RemoveExtensionFromChatThread({ extensionId, chatThreadId: props.chatThreadId });
+    RevalidateCache({ page: "chat", type: isChecked ? "layout" : undefined });
+    if (response.status !== "OK") {
+      showError(response.errors[0].message);
     }
   };
 

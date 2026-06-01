@@ -10,13 +10,7 @@ import { PersonaModel } from "../persona-services/models";
 import { PersonaCardContextMenu } from "./persona-card-context-menu";
 import { ViewPersona } from "./persona-view";
 import { StartNewPersonaChat } from "./start-new-persona-chat";
-import { CopyToClipboardButton } from "./copy-to-clipboard-button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/features/ui/tooltip";
+import { CopyAgentLinksMenu } from "./copy-agent-links-menu";
 import { PersonaVisibilityInfo } from "./persona-visibility-info";
 import { FavoriteAgentButton } from "./favorite-agent-button";
 
@@ -32,7 +26,7 @@ export const PersonaCard: FC<Props> = (props) => {
   const { persona } = props;
 
   return (
-    <Card key={persona.id} className="flex flex-col">
+    <Card key={persona.id} data-persona-id={persona.id} className="flex flex-col">
       <CardHeader className="flex flex-row gap-2 items-start">
         <div className="flex flex-1 items-center gap-2">
           <CardTitle className="flex-1 line-clamp-1">{persona.name}</CardTitle>
@@ -57,18 +51,7 @@ export const PersonaCard: FC<Props> = (props) => {
       <CardFooter className="gap-1 content-stretch f">
         {props.showContextMenu && <ViewPersona persona={persona} />}
         <StartNewPersonaChat persona={persona} />
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger >
-                <CopyToClipboardButton
-                  relativeLink={`/agent/${persona.id}/chat`}
-                />
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Copy link to Agent</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <CopyAgentLinksMenu personaId={persona.id} />
       </CardFooter>
     </Card>
   );

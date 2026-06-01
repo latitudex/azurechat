@@ -19,13 +19,14 @@ beforeAll(() => {
   }
 });
 
-vi.mock("../chat-store", () => ({
-  useChat: vi.fn().mockReturnValue({
-    webSearchEnabled: false,
-    imageGenerationEnabled: false,
-    companyContentEnabled: false,
-    codeInterpreterEnabled: false,
-  }),
+vi.mock("../chat-store-context", () => ({
+  useChatStore: (selector: (s: Record<string, unknown>) => unknown) =>
+    selector({
+      webSearchEnabled: false,
+      imageGenerationEnabled: false,
+      companyContentEnabled: false,
+      codeInterpreterEnabled: false,
+    }),
 }));
 
 describe("chat-page.unit.components.003 — ReasoningEffortSelector", () => {

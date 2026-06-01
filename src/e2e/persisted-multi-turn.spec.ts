@@ -27,15 +27,22 @@ test.describe("persisted-multi-turn", () => {
     const userMessages = ["first question", "second question", "third question"];
     for (const msg of userMessages) {
       await textarea.fill(msg);
+      // Focus the textarea so Enter is interpreted as a submit by the form
+      // (without an explicit focus, in CI the keyboard event can be lost if
+      // a sibling element has implicit focus after a previous turn).
+      await textarea.focus();
       await page.keyboard.press("Enter");
-      // Wait for the stubbed assistant reply chunk before sending the next turn —
-      // each `getByText` will resolve against the matching assistant bubble for
-      // this turn. The fake OpenAI returns the same TEST_REPLY every time, so
-      // we rely on the user message itself as the "this turn rendered" marker.
+      // The user-message bubble appears optimistically. If it doesn't, the
+      // submit didn't actually fire — fail fast rather than waiting through
+      // the longer downstream timeouts.
       await expect(page.getByText(msg)).toBeVisible({ timeout: 15_000 });
-      // And wait for the loading state to clear before next turn (stop button
-      // hides when streaming completes).
-      await expect(page.getByRole("button", { name: /stop/i })).toBeHidden({ timeout: 15_000 });
+      // Stop button appears while streaming. Wait for it to APPEAR first
+      // (proves the stream actually started), then disappear (proves it
+      // finished). Without the appear-then-hide bracket, an instant-finish
+      // race can let the loop advance before the assistant turn lands.
+      const stopButton = page.getByRole("button", { name: /stop/i });
+      await expect(stopButton).toBeVisible({ timeout: 15_000 });
+      await expect(stopButton).toBeHidden({ timeout: 15_000 });
     }
 
     // Three user bubbles + N assistant bubbles per turn (the markdoc tree

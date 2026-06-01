@@ -7,6 +7,7 @@ import {
   userSession,
 } from "@/features/auth-page/helpers";
 import { ServerActionResponse } from "@/features/common/server-action-response";
+import { logError, logInfo, logWarn } from "@/features/common/services/logger";
 import { uniqueId } from "@/features/common/util";
 import {
   CHAT_DEFAULT_PERSONA,
@@ -20,11 +21,29 @@ import { FindAllChatMessagesForCurrentUser } from "./chat-message-service";
 import {
   CHAT_THREAD_ATTRIBUTE,
   DEFAULT_MODEL,
+  MODEL_CONFIGS,
+  type ChatModel,
+  type ReasoningEffort,
   ChatDocumentModel,
   ChatMessageModel,
   ChatThreadModel,
   AttachedFileModel,
 } from "./models";
+
+const VALID_REASONING_EFFORTS: ReadonlyArray<ReasoningEffort> = [
+  "minimal",
+  "low",
+  "medium",
+  "high",
+];
+
+function isValidChatModel(value: string): value is ChatModel {
+  return value in MODEL_CONFIGS;
+}
+
+function isValidReasoningEffort(value: string): value is ReasoningEffort {
+  return (VALID_REASONING_EFFORTS as ReadonlyArray<string>).includes(value);
+}
 import { redirect } from "next/navigation";
 import { RevalidateCache } from "@/features/common/navigation-helpers";
 import { ChatApiText } from "./chat-api/chat-api-text";
@@ -454,11 +473,23 @@ export const UpdateChatThreadSelectedModel = async (
   chatThreadId: string,
   selectedModel: string
 ): Promise<ServerActionResponse<ChatThreadModel>> => {
+  if (!isValidChatModel(selectedModel)) {
+    return {
+      status: "ERROR",
+      errors: [
+        {
+          message: `Invalid selectedModel "${selectedModel}". Must be one of: ${Object.keys(
+            MODEL_CONFIGS,
+          ).join(", ")}`,
+        },
+      ],
+    };
+  }
   try {
     const response = await FindChatThreadForCurrentUser(chatThreadId);
     if (response.status === "OK") {
       const chatThread = response.response;
-      chatThread.selectedModel = selectedModel as any;
+      chatThread.selectedModel = selectedModel;
       return await UpsertChatThread(chatThread);
     }
     return response;
@@ -474,11 +505,21 @@ export const UpdateChatThreadReasoningEffort = async (
   chatThreadId: string,
   reasoningEffort: string
 ): Promise<ServerActionResponse<ChatThreadModel>> => {
+  if (!isValidReasoningEffort(reasoningEffort)) {
+    return {
+      status: "ERROR",
+      errors: [
+        {
+          message: `Invalid reasoningEffort "${reasoningEffort}". Must be one of: ${VALID_REASONING_EFFORTS.join(", ")}`,
+        },
+      ],
+    };
+  }
   try {
     const response = await FindChatThreadForCurrentUser(chatThreadId);
     if (response.status === "OK") {
       const chatThread = response.response;
-      chatThread.reasoningEffort = reasoningEffort as any;
+      chatThread.reasoningEffort = reasoningEffort;
       return await UpsertChatThread(chatThread);
     }
     return response;

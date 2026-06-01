@@ -1,0 +1,118 @@
+import { describe, it, expect } from "vitest";
+import {
+  isToolPart,
+  normalizeToolPart,
+  renderToolOutput,
+} from "../tool-part-view";
+
+describe("isToolPart", () => {
+  it.each([
+    [{ type: "dynamic-tool" }, true],
+    [{ type: "tool-call" }, true],
+    [{ type: "tool-result" }, true],
+    [{ type: "tool-search_documents" }, true],
+    [{ type: "tool-call_sub_agent" }, true],
+    [{ type: "text", text: "hi" }, false],
+    [{ type: "reasoning", text: "..." }, false],
+    [{ type: "file", url: "x" }, false],
+  ])("classifies %j → %s", (part, expected) => {
+    expect(isToolPart(part as never)).toBe(expected);
+  });
+});
+
+describe("normalizeToolPart", () => {
+  it("recovers toolName from `tool-<name>` type discriminator", () => {
+    const out = normalizeToolPart(
+      { type: "tool-search_documents", input: { q: "x" } } as never,
+      0,
+    );
+    expect(out.toolName).toBe("search_documents");
+  });
+
+  it("prefers explicit toolName over the type discriminant", () => {
+    const out = normalizeToolPart(
+      { type: "dynamic-tool", toolName: "call_sub_agent", input: {} } as never,
+      0,
+    );
+    expect(out.toolName).toBe("call_sub_agent");
+  });
+
+  it("uses toolCallId as the part id when present", () => {
+    const out = normalizeToolPart(
+      { type: "tool-call", toolCallId: "tc-42", input: {} } as never,
+      7,
+    );
+    expect(out.id).toBe("tc-42");
+  });
+
+  it("falls back to idx-<index> when toolCallId is absent", () => {
+    const out = normalizeToolPart(
+      { type: "tool-call", input: {} } as never,
+      7,
+    );
+    expect(out.id).toBe("idx-7");
+  });
+
+  it("marks state=output-available when output is present and non-null", () => {
+    const out = normalizeToolPart(
+      { type: "tool-call", output: { hits: [] } } as never,
+      0,
+    );
+    expect(out.state).toBe("output-available");
+  });
+
+  it("marks state=input-available when output is absent and SDK state is default", () => {
+    const out = normalizeToolPart({ type: "tool-call", input: {} } as never, 0);
+    expect(out.state).toBe("input-available");
+  });
+
+  it("respects SDK-declared output-available even when output is null", () => {
+    const out = normalizeToolPart(
+      { type: "tool-call", state: "output-available", output: null } as never,
+      0,
+    );
+    expect(out.state).toBe("output-available");
+  });
+});
+
+describe("renderToolOutput", () => {
+  it("returns undefined for null/undefined so ToolOutput hides", () => {
+    expect(renderToolOutput(null)).toBeUndefined();
+    expect(renderToolOutput(undefined)).toBeUndefined();
+  });
+
+  it("stringifies primitive output", () => {
+    expect(renderToolOutput("hello")).toBe("hello");
+    expect(renderToolOutput(42)).toBe("42");
+    expect(renderToolOutput(true)).toBe("true");
+  });
+
+  it("renders object-of-primitives as a key/value table element", () => {
+    const result = renderToolOutput({
+      temperature: "15",
+      condition: "sunny",
+      humidity: 60,
+    });
+    // Result is a React element with table props
+    expect(result).toBeTruthy();
+    expect((result as { type: { name: string } }).type.name).toBe(
+      "KeyValueTable",
+    );
+  });
+
+  it("renders array of primitives as a list element", () => {
+    const result = renderToolOutput(["one", "two", 3]);
+    expect((result as { type: { name: string } }).type.name).toBe(
+      "PrimitiveList",
+    );
+  });
+
+  it("falls back to a <pre> JSON dump for nested structures", () => {
+    const nested = { hits: [{ id: "d1", snippet: "x" }] };
+    const result = renderToolOutput(nested);
+    expect((result as { type: string }).type).toBe("pre");
+    expect((result as { props: { children: string } }).props.children).toContain(
+      "hits",
+    );
+  });
+});

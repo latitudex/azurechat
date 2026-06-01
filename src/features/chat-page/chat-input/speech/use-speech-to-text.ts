@@ -6,7 +6,7 @@ import {
   SpeechRecognizer,
 } from "microsoft-cognitiveservices-speech-sdk";
 import { proxy, useSnapshot } from "valtio";
-import { chatStore } from "../../chat-store";
+import { getActiveChatStore } from "../../active-chat-store";
 import { GetSpeechToken } from "./speech-service";
 
 let speechRecognizer: SpeechRecognizer | undefined = undefined;
@@ -50,7 +50,7 @@ class SpeechToText {
     speechRecognizer = recognizer;
 
     recognizer.recognizing = (s, e) => {
-      chatStore.updateInput(e.result.text);
+      getActiveChatStore()?.getState().setInputText(e.result.text);
     };
 
     recognizer.canceled = (s, e) => {

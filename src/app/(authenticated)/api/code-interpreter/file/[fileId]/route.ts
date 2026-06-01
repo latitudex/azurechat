@@ -15,7 +15,7 @@ export async function GET(
     }
 
     const { fileId } = await params;
-    
+
     if (!fileId) {
       return new Response("File ID is required", { status: 400 });
     }

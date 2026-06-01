@@ -683,7 +683,7 @@ const ValidatePersonaDocumentSchema = (
 
     if (!validatedFields.success) {
       errors.push(
-        ...zodErrorsToServerActionErrors(validatedFields.error.errors)
+        ...zodErrorsToServerActionErrors(validatedFields.error.issues)
       );
     } else {
       validModels.push(validatedFields.data);

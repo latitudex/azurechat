@@ -96,10 +96,53 @@ const configureIdentityProvider = () => {
   return providers;
 };
 
+/**
+ * When the app is embedded in a third-party iframe (e.g. SharePoint), the
+ * browser only sends the NextAuth session cookie to the framed document if it
+ * is SameSite=None; Secure. That weakens CSRF posture for the whole app, so it
+ * is gated behind EMBED_ALLOW_THIRD_PARTY_COOKIES=true and stays off by
+ * default. Browsers that block third-party cookies (Safari ITP, Chrome's
+ * upcoming default) will still fail; the "Open in full app" button is the
+ * fallback in that case.
+ */
+const embedCookieConfig = (): NextAuthOptions["cookies"] => {
+  if (process.env.EMBED_ALLOW_THIRD_PARTY_COOKIES !== "true") {
+    return undefined;
+  }
+
+  const secure = true;
+  return {
+    sessionToken: {
+      name: `__Secure-next-auth.session-token`,
+      options: { httpOnly: true, sameSite: "none", path: "/", secure },
+    },
+    callbackUrl: {
+      name: `__Secure-next-auth.callback-url`,
+      options: { sameSite: "none", path: "/", secure },
+    },
+    csrfToken: {
+      name: `__Host-next-auth.csrf-token`,
+      options: { httpOnly: true, sameSite: "none", path: "/", secure },
+    },
+  };
+};
+
 export const options: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   providers: [...configureIdentityProvider()],
+  cookies: embedCookieConfig(),
   callbacks: {
+    // Keep the embed popup flow on /embed/* and otherwise preserve the default
+    // same-origin behaviour. Anything off-origin falls back to baseUrl.
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      try {
+        if (new URL(url).origin === baseUrl) return url;
+      } catch {
+        /* malformed url — fall through to baseUrl */
+      }
+      return baseUrl;
+    },
     async jwt({ token, user, account }) {
       if (account && user) {
         const extendedUser = user as { accessToken?: string; isAdmin?: boolean };

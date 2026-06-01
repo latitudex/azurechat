@@ -43,7 +43,7 @@ export default defineConfig({
     },
     server: {
       deps: {
-        inline: ["next-auth"],
+        inline: ["next-auth", "ai", "@ai-sdk/provider", "@ai-sdk/provider-utils", "@ai-sdk/gateway"],
       },
     },
   },

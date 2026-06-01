@@ -45,3 +45,8 @@ infra/aad_setup.sh
 .vscode
 .claude/settings.local.json
 src/.env.local.bak
+
+# Local agent/skill tooling (installed via `npx skills add`) — not app code
+.agents/
+.claude/skills/
+skills-lock.json

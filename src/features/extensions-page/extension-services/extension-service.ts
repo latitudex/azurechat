@@ -464,7 +464,7 @@ const validateSchema = (model: ExtensionModel): ServerActionResponse => {
   if (!validatedFields.success) {
     return {
       status: "ERROR",
-      errors: zodErrorsToServerActionErrors(validatedFields.error.errors),
+      errors: zodErrorsToServerActionErrors(validatedFields.error.issues),
     };
   }
 

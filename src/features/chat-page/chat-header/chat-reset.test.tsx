@@ -2,17 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { mockResetChatThread, mockRemoveMessages } = vi.hoisted(() => ({
+const { mockResetChatThread, mockSetMessages } = vi.hoisted(() => ({
   mockResetChatThread: vi.fn(),
-  mockRemoveMessages: vi.fn(),
+  mockSetMessages: vi.fn(),
 }));
 
 vi.mock("../chat-services/chat-thread-service", () => ({
   ResetChatThread: mockResetChatThread,
 }));
 
-vi.mock("@/features/chat-page/chat-store", () => ({
-  chatStore: { removeMessages: mockRemoveMessages },
+vi.mock("../chat-store-context", () => ({
+  useChatSession: () => ({ setMessages: mockSetMessages }),
 }));
 
 // Mock Dialog to render inline without animations to avoid timeouts
@@ -67,7 +67,7 @@ describe("chat-page.unit.components — ChatReset", () => {
     await userEvent.click(screen.getByText("Confirm"));
     await waitFor(() => {
       expect(mockResetChatThread).toHaveBeenCalledWith("t1");
-      expect(mockRemoveMessages).toHaveBeenCalled();
+      expect(mockSetMessages).toHaveBeenCalled();
     });
   });
 
@@ -77,7 +77,7 @@ describe("chat-page.unit.components — ChatReset", () => {
     await userEvent.click(screen.getByText("Confirm"));
     await waitFor(() => {
       expect(mockResetChatThread).toHaveBeenCalledWith("t1");
-      expect(mockRemoveMessages).not.toHaveBeenCalled();
+      expect(mockSetMessages).not.toHaveBeenCalled();
     });
   });
 

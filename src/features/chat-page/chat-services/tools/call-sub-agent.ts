@@ -1,0 +1,162 @@
+import "server-only";
+
+import { z } from "zod";
+import { tool, generateText, stepCountIs } from "ai";
+import { logInfo, logDebug, logError } from "@/features/common/services/logger";
+import { FindPersonaByID } from "@/features/persona-page/persona-services/persona-service";
+import { MODEL_CONFIGS, DEFAULT_MODEL, type ChatModel } from "../models";
+import { resolveAzureModel } from "../models/provider";
+import type { ToolContext } from "./tool-context";
+
+const MAX_SUB_AGENT_DEPTH = 2;
+
+/**
+ * AI SDK v5 tool that delegates a task to a specialized sub-agent persona.
+ *
+ * Recursion guard: each nested context increments depth; at MAX_SUB_AGENT_DEPTH
+ * the sub-agent's toolset is empty (fail-closed) so no infinite loop can form.
+ *
+ * JSON Schema matches function-registry.ts `call_sub_agent` definition
+ * exactly for prompt-cache stability.
+ */
+export function callSubAgentTool(ctx: ToolContext) {
+  return tool({
+    description:
+      "Delegate a task to a specialized sub-agent. " +
+      "Use this when a question or task is better handled by another agent with specific expertise. " +
+      "The sub-agent will process the task independently and return its response.",
+    inputSchema: z.object({
+      agent_id: z
+        .string()
+        .describe("The unique identifier of the sub-agent to call."),
+      task: z
+        .string()
+        .describe(
+          "The task or question to delegate to the sub-agent. " +
+            "Be specific and provide all necessary context."
+        ),
+    }),
+    execute: async (
+      args: { agent_id: string; task: string },
+      { abortSignal }: { abortSignal?: AbortSignal }
+    ) => {
+      logInfo("callSubAgentTool: executing", {
+        agentId: args.agent_id,
+        taskLength: args.task?.length ?? 0,
+        threadId: ctx.threadId,
+        depth: ctx.depth ?? 0,
+      });
+
+      // Resolve persona
+      const personaResponse = await FindPersonaByID(args.agent_id);
+      if (personaResponse.status !== "OK") {
+        logError("callSubAgentTool: persona not found", {
+          agentId: args.agent_id,
+          status: personaResponse.status,
+        });
+        throw new Error(
+          `Agent "${args.agent_id}" was not found or you do not have access to it.`
+        );
+      }
+
+      const persona = personaResponse.response;
+
+      // Resolve model
+      const modelId =
+        (persona.selectedModel as ChatModel | undefined) ?? DEFAULT_MODEL;
+      const modelConfig = MODEL_CONFIGS[modelId];
+      if (!modelConfig?.deploymentName) {
+        throw new Error(
+          `The model "${modelId}" configured for agent "${persona.name}" is not available.`
+        );
+      }
+
+      // Build sub-context and tools (recursion-guarded)
+      const currentDepth = ctx.depth ?? 0;
+      let subToolset: Record<string, any> = {};
+
+      if (currentDepth < MAX_SUB_AGENT_DEPTH) {
+        // Lazy import to avoid a circular dependency at module load time.
+        const { buildToolset } = await import("./registry");
+
+        const subCtx: ToolContext = {
+          user: ctx.user,
+          threadId: ctx.threadId,
+          threadDocumentIds: ctx.threadDocumentIds,
+          personaDocumentIds: persona.personaDocumentIds ?? [],
+          defaultTools: persona.defaultTools ?? {},
+          extensions: [], // Sub-agents don't inherit thread extensions
+          // A sub-agent's own sub-agents are read off the persona; the
+          // tool only registers when the persona declares them, matching
+          // the top-level behaviour.
+          subAgentIds: persona.subAgentIds,
+          depth: currentDepth + 1,
+        };
+
+        subToolset = await buildToolset(subCtx);
+      } else {
+        logInfo(
+          "callSubAgentTool: max recursion depth reached, running sub-agent with no tools",
+          { depth: currentDepth, agentId: args.agent_id }
+        );
+      }
+
+      logDebug("callSubAgentTool: calling generateText", {
+        agentName: persona.name,
+        model: modelConfig.deploymentName,
+        taskPreview: args.task.substring(0, 200),
+        toolCount: Object.keys(subToolset).length,
+      });
+
+      const result = await generateText({
+        model: resolveAzureModel(modelId),
+        system: persona.personaMessage,
+        messages: [{ role: "user", content: args.task }],
+        tools: subToolset,
+        stopWhen: stepCountIs(8),
+        abortSignal,
+      });
+
+      // Compute cost from pricing config. ai@6's LanguageModelUsage flattened:
+      //   - inputTokens (total input incl. cached)
+      //   - outputTokens
+      //   - totalTokens
+      // cachedInputTokens / reasoningTokens moved to inputTokenDetails /
+      // outputTokenDetails. We probe both legacy and new locations so the
+      // tool works whether the underlying provider has migrated or not.
+      const pricing = modelConfig.pricing;
+      const inputTokens = result.usage?.inputTokens ?? 0;
+      const outputTokens = result.usage?.outputTokens ?? 0;
+      const cachedTokens =
+        (result.usage as any)?.inputTokenDetails?.cacheReadTokens ??
+        (result.usage as any)?.cachedInputTokens ??
+        0;
+      const totalTokens =
+        result.usage?.totalTokens ?? inputTokens + outputTokens;
+
+      const costUsd = pricing
+        ? ((inputTokens - cachedTokens) / 1_000_000) * pricing.inputPerMillion +
+          (cachedTokens / 1_000_000) * pricing.cachedInputPerMillion +
+          (outputTokens / 1_000_000) * pricing.outputPerMillion
+        : 0;
+
+      logInfo("callSubAgentTool: completed", {
+        agentId: args.agent_id,
+        agentName: persona.name,
+        responseLength: result.text.length,
+        inputTokens,
+        outputTokens,
+        costUsd,
+      });
+
+      return {
+        agentName: persona.name,
+        agentId: args.agent_id,
+        model: modelId,
+        response: result.text,
+        summary: `Agent "${persona.name}" responded successfully.`,
+        usage: { inputTokens, outputTokens, cachedTokens, totalTokens, costUsd },
+      };
+    },
+  });
+}

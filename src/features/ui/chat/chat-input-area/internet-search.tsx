@@ -1,11 +1,19 @@
+"use client";
 import { Globe } from "lucide-react";
 import { Button } from "../../button";
 import { ExtensionModel } from "@/features/extensions-page/extension-services/models";
-import { chatStore } from "@/features/chat-page/chat-store";
+import { useChatStore } from "@/features/chat-page/chat-store-context";
+import {
+  AddExtensionToChatThread,
+  RemoveExtensionFromChatThread,
+} from "@/features/chat-page/chat-services/chat-thread-service";
+import { RevalidateCache } from "@/features/common/navigation-helpers";
+import { showError } from "@/features/globals/global-message-store";
 import { useState } from "react";
 
 export const InternetSearch = (props: { extension: ExtensionModel; threadExtensions: string[] }) => {
   const [threadExtensions, setThreadExtensions] = useState<string[]>(props.threadExtensions);
+  const chatThreadId = useChatStore((s) => s.threadId);
 
   const toggleInstall = async () => {
     const isInstalled = threadExtensions.includes(props.extension.id);
@@ -17,10 +25,13 @@ export const InternetSearch = (props: { extension: ExtensionModel; threadExtensi
     setThreadExtensions(newThreadExtensions);
 
     try {
-      if (isInstalled) {
-        await chatStore.RemoveExtensionFromChatThread(props.extension.id);
-      } else {
-        await chatStore.AddExtensionToChatThread(props.extension.id);
+      const response = isInstalled
+        ? await RemoveExtensionFromChatThread({ extensionId: props.extension.id, chatThreadId })
+        : await AddExtensionToChatThread({ extensionId: props.extension.id, chatThreadId });
+      RevalidateCache({ page: "chat", type: isInstalled ? undefined : "layout" });
+      if (response.status !== "OK") {
+        showError(response.errors[0].message);
+        setThreadExtensions(threadExtensions);
       }
     } catch (error) {
       setThreadExtensions(threadExtensions); // Revert to the original state

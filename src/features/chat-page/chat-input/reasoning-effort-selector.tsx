@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/features/ui/select";
 import { ReasoningEffort } from "../chat-services/models";
-import { useChat } from "../chat-store";
+import { useChatStore } from "../chat-store-context";
 
 interface ReasoningEffortSelectorProps {
   value: ReasoningEffort;
@@ -25,8 +25,13 @@ export const ReasoningEffortSelector: React.FC<ReasoningEffortSelectorProps> = (
   disabled = false,
   showReasoningModelsOnly = false,
 }) => {
-  const { webSearchEnabled, imageGenerationEnabled, companyContentEnabled, codeInterpreterEnabled } = useChat();
-  const toolsEnabled = webSearchEnabled || imageGenerationEnabled || companyContentEnabled || codeInterpreterEnabled;
+  const toolsEnabled = useChatStore(
+    (s) =>
+      s.webSearchEnabled ||
+      s.imageGenerationEnabled ||
+      s.companyContentEnabled ||
+      s.codeInterpreterEnabled,
+  );
 
   if (!showReasoningModelsOnly) {
     return null;

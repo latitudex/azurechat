@@ -11,6 +11,12 @@ export const metadata = {
   description: AI_NAME,
 };
 
+// Always re-render this route on each request so a thread whose background
+// generation just persisted shows its new assistant message immediately,
+// without waiting for the Next.js client-router cache to expire.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface HomeParams {
   params: Promise<{
     id: string;

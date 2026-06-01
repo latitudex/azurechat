@@ -9,6 +9,7 @@ interface MessageProp {
 export const showError = (error: string, reload?: () => void) => {
   toast({
     variant: "destructive",
+    title: "Something went wrong",
     description: error,
     action: reload ? (
       <ToastAction

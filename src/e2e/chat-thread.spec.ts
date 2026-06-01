@@ -1,29 +1,15 @@
 import { test, expect } from "@playwright/test";
+import { scriptText } from "./_helpers/script-fake";
 
-// The chat client parses each SSE `data:` event as JSON and dispatches on
-// `responseType.type`. See chat-store.tsx's createStreamParser — it only
-// understands the app's custom envelope (`{ type: "content"|"finalContent"|
-// "abort"|"error"|"reasoning", response: ... }`), NOT the raw OpenAI Chat
-// Completions delta shape.
-const CANNED_SSE = [
-  'data: {"type":"content","response":{"id":"msg-test-1","choices":[{"message":{"content":"Hello from the "}}]}}\n\n',
-  'data: {"type":"content","response":{"id":"msg-test-1","choices":[{"message":{"content":"assistant!"}}]}}\n\n',
-  'data: {"type":"finalContent","response":"Hello from the assistant!"}\n\n',
-].join("");
-
+/**
+ * Migrated from page.route()-mocked custom-SSE format → fake-provider
+ * scripting. The new AI SDK v6 useChat consumes the Vercel UI message
+ * stream, which the legacy mock can't produce. See e2e/verification.md
+ * for the migration rationale.
+ */
 test.describe("chat-thread", () => {
   test("send a message in /chat/temporary and render the assistant reply", async ({ page }) => {
-    await page.route("**/api/chat", async (route) => {
-      await route.fulfill({
-        status: 200,
-        headers: {
-          "content-type": "text/event-stream",
-          "cache-control": "no-cache",
-          "x-content-type-options": "nosniff",
-        },
-        body: CANNED_SSE,
-      });
-    });
+    await scriptText(page, "Hello from the assistant!");
 
     await page.goto("/chat/temporary");
 

@@ -13,7 +13,7 @@ import {
 } from "../../chat-services/chat-document-service";
 import { SupportedFileExtensionsInputImages, AttachedFileModel } from "../../chat-services/models";
 import { isCodeInterpreterSupportedFile } from "../../chat-services/code-interpreter-constants";
-import { chatStore } from "../../chat-store";
+import { getActiveChatStore } from "../../active-chat-store";
 import { InputImageStore } from "@/features/ui/chat/chat-input-area/input-image-store";
 import { AddAttachedFile } from "../../chat-services/chat-thread-service";
 
@@ -48,6 +48,7 @@ async function shouldIndexInAzureSearch(extension: string): Promise<boolean> {
 
 class FileStore {
   public uploadButtonLabel: string = "";
+  public loading: "idle" | "file upload" = "idle";
 
   public async onFileChange(props: {
     formData: FormData;
@@ -56,7 +57,7 @@ class FileStore {
     const { formData, chatThreadId } = props;
 
     try {
-      chatStore.updateLoading("file upload");
+      this.loading = "file upload";
 
       formData.append("id", chatThreadId);
       const file: File | null = formData.get("file") as unknown as File;
@@ -76,10 +77,11 @@ class FileStore {
       const isCodeInterpreterOnly =
         !!fileExtension && (await shouldUseCodeInterpreter(fileExtension));
       const isCodeInterpreterSupported = isCodeInterpreterSupportedFile(file.name);
+      const z = getActiveChatStore()?.getState();
       const shouldUploadToCodeInterpreter =
         isCodeInterpreterOnly ||
         // Manual override: when CI is enabled, route CI-supported non-image files to CI.
-        (chatStore.codeInterpreterEnabled &&
+        (!!z?.codeInterpreterEnabled &&
           isCodeInterpreterSupported &&
           !isInputImage);
 
@@ -91,21 +93,21 @@ class FileStore {
             InputImageStore.AddImage(reader.result);
           }
         };
-        chatStore.updateLoading("idle");
+        this.loading = "idle";
         return;
       }
 
       // Check if this file should go to Code Interpreter instead of Azure Search
       if (shouldUploadToCodeInterpreter) {
         this.uploadButtonLabel = "Uploading for Code Interpreter";
-        
+
         try {
           const uploadFormData = new FormData();
           uploadFormData.append("file", file);
 
           const response = await fetch("/api/code-interpreter/upload", {
             method: "POST",
-            body: uploadFormData
+            body: uploadFormData,
           });
 
           if (!response.ok) {
@@ -114,36 +116,36 @@ class FileStore {
           }
 
           const data = await response.json();
-          
-          console.log("file-store: File uploaded, adding to chatStore:", { id: data.id, name: data.name });
-          
-          // Create attached file model
+
           const attachedFile: AttachedFileModel = {
             id: data.id,
             name: data.name,
             type: "code-interpreter",
-            uploadedAt: new Date()
+            uploadedAt: new Date(),
           };
-          
-          // Add file to store and enable code interpreter
-          chatStore.addAttachedFile(attachedFile);
-          chatStore.toggleCodeInterpreter(true);
-          
+
+          // Write synchronously to the per-thread Zustand store so a
+          // same-tick Send sees this file id in the request payload —
+          // the architect2 SEV-1 B3 race that the old Valtio path had.
+          const active = getActiveChatStore();
+          if (active) {
+            active.getState().addAttachedFile(attachedFile);
+            active.getState().toggleCodeInterpreter(true);
+          }
+
           // Persist to database
           await AddAttachedFile(chatThreadId, attachedFile);
-          
-          console.log("file-store: After adding, attachedFiles:", chatStore.attachedFiles);
 
           this.uploadButtonLabel = file.name + " ready for analysis";
           showSuccess({
             title: "File uploaded",
-            description: `${file.name} is ready for Code Interpreter analysis`
+            description: `${file.name} is ready for Code Interpreter analysis`,
           });
         } catch (error) {
           showError(`Failed to upload file: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
           this.uploadButtonLabel = "";
-          chatStore.updateLoading("idle");
+          this.loading = "idle";
         }
         return;
       }
@@ -211,7 +213,7 @@ class FileStore {
       showError("" + error);
     } finally {
       this.uploadButtonLabel = "";
-      chatStore.updateLoading("idle");
+      this.loading = "idle";
     }
   }
 }

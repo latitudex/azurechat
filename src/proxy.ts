@@ -15,6 +15,23 @@ const requireAdmin: string[] = ["/reporting"];
 export async function proxy(request: NextRequest) {
   const res = NextResponse.next();
   const pathname = request.nextUrl.pathname;
+
+  // /embed/* may be framed by allow-listed ancestors. EMBED_ALLOWED_ANCESTORS is
+  // resolved here at RUNTIME (proxy runs per request) so it can change via an env
+  // var without a rebuild — next.config.js headers() are baked at build time.
+  // Defaults to 'self' only; the embed feature is opt-in per deployment. No
+  // X-Frame-Options: it has no allow-list semantics and CSP supersedes it.
+  if (pathname.startsWith("/embed")) {
+    const frameAncestors = (
+      process.env.EMBED_ALLOWED_ANCESTORS || "'self'"
+    ).trim();
+    res.headers.set(
+      "Content-Security-Policy",
+      `frame-ancestors ${frameAncestors};`,
+    );
+    return res;
+  }
+
   // Check if the user is trying to access the root path
   if (pathname === '/') {
     const token = await getToken({
@@ -55,6 +72,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/",
+    "/embed/:path*",
     "/unauthorized/:path*",
     "/reporting/:path*",
     "/api/chat:path*",

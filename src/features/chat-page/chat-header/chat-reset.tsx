@@ -4,18 +4,19 @@ import { Button } from "@/features/ui/button";
 import { RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { ResetChatThread } from "../chat-services/chat-thread-service";
-import { chatStore } from "@/features/chat-page/chat-store";
+import { useChatSession } from "../chat-store-context";
 import { LoadingIndicator } from "@/features/ui/loading";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogClose, DialogTrigger } from "@/features/ui/dialog";
 
 export const ChatReset = ({ chatThreadId, disabled }: { chatThreadId: string; disabled?: boolean }) => {
   const [resetting, setResetting] = useState(false);
   const [open, setOpen] = useState(false);
+  const { setMessages } = useChatSession();
   const handleReset = async () => {
     setResetting(true);
     const resetResponse = await ResetChatThread(chatThreadId);
     if (resetResponse.status === "OK") {
-      chatStore.removeMessages();
+      setMessages([]);
     }
     setResetting(false);
     setOpen(false);

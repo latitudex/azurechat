@@ -67,3 +67,62 @@
     display: none;
   }
 }
+
+/*
+ * Shimmer — a bright band sweeps left→right across the text to signal
+ * in-progress / streaming state (e.g. a running tool call). The band is
+ * the brand colour; the resting text is muted. See ai-elements/shimmer.tsx.
+ */
+@keyframes ai-shimmer {
+  0% {
+    background-position: 100% center;
+  }
+  100% {
+    background-position: -100% center;
+  }
+}
+
+.ai-shimmer {
+  /*
+   * Muted base with a narrow brand-coloured band. The gradient TILES
+   * (no `no-repeat`) so the text is always painted — only the bright band
+   * moves, sweeping left→right; the rest of the text stays the muted colour
+   * rather than going transparent at the edges of the gradient.
+   */
+  background-image: linear-gradient(
+    100deg,
+    hsl(var(--muted-foreground)) 0%,
+    hsl(var(--muted-foreground)) 42%,
+    hsl(var(--primary)) 50%,
+    hsl(var(--muted-foreground)) 58%,
+    hsl(var(--muted-foreground)) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: ai-shimmer var(--ai-shimmer-duration, 1.4s) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-shimmer {
+    animation: none;
+    -webkit-text-fill-color: hsl(var(--muted-foreground));
+    color: hsl(var(--muted-foreground));
+  }
+}
+
+/*
+ * Streamdown renders each markdown image with a hover "download" button, but
+ * positions it ~56px BELOW the image (bottom: -56px). Inside a chat message
+ * that bottom strip is clipped by MessageContent's `overflow-hidden`, so the
+ * button is invisible/cut off. Pin it to the image's bottom-right corner (the
+ * conventional overlay position) so it stays within the image bounds and is
+ * never clipped. Scoped to image wrappers inside rendered markdown (.prose).
+ */
+.prose div:has(> img) > button {
+  top: auto !important;
+  bottom: 0.5rem !important;
+  right: 0.5rem !important;
+}
